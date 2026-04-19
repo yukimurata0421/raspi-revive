@@ -1,0 +1,39 @@
+{
+  "scenario_id": "SCN-001",
+  "injected_failure": "Stop sentinel only",
+  "expected_evidence": "gpio fresh, host heartbeat fresh, ssh ok, sentinel stale",
+  "expected_state": "SENTINEL_ONLY_FAILURE",
+  "expected_action": "RESTART_SENTINEL",
+  "forbidden_action": "REMOTE_REBOOT/GPIO_REBOOT",
+  "recovery_verification": "sentinel freshness recovers",
+  "notes": "in-band first",
+  "threshold_overrides": {
+    "required_consecutive_sentinel_failure": 1
+  },
+  "steps": [
+    {
+      "step_id": "SCN-001-STEP-1",
+      "expected_state": "SENTINEL_ONLY_FAILURE",
+      "expected_action": "RESTART_SENTINEL",
+      "forbidden_actions": ["REMOTE_REBOOT", "GPIO_REBOOT"],
+      "observation": {
+        "ts": 1000.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:00+00:00",
+        "host_heartbeat_age_sec": 1.0,
+        "host_heartbeat_fresh": true,
+        "host_heartbeat_progressing": true,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 100.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 1.0,
+        "sentinel_state_fresh": true,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    }
+  ]
+}

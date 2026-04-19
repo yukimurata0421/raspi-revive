@@ -1,0 +1,14 @@
+[Unit]
+Description=raspi-revive host heartbeat writer
+After=network.target
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=/etc/raspi-revive/agent.env
+ExecStart=/usr/bin/python3 /opt/raspi-revive/targets/raspi-5-agent/scripts/write_host_heartbeat.py --output ${HOST_HEARTBEAT_PATH} --interval-sec ${HEARTBEAT_INTERVAL_SEC}
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

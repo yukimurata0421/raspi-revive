@@ -1,0 +1,8 @@
+{
+  "service": "raspi-revive-host-heartbeat",
+  "host": "raspi5-main",
+  "boot_id": "5cf4d27a-2f3a-4b96-92fb-84f8e19d9be5",
+  "seq": 1042,
+  "monotonic_sec": 30214.352,
+  "wall_time": "2026-04-19T07:20:15.123456+00:00"
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/raspi-revive/schemas/host-heartbeat.schema.json",
+  "title": "HostHeartbeat",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "service",
+    "host",
+    "boot_id",
+    "seq",
+    "monotonic_sec",
+    "wall_time"
+  ],
+  "properties": {
+    "service": {
+      "type": "string",
+      "minLength": 1
+    },
+    "host": {
+      "type": "string",
+      "minLength": 1
+    },
+    "boot_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "monotonic_sec": {
+      "type": "number",
+      "minimum": 0
+    },
+    "wall_time": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

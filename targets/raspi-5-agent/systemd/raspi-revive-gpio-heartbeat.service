@@ -1,0 +1,14 @@
+[Unit]
+Description=raspi-revive GPIO heartbeat emitter
+After=multi-user.target
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=/etc/raspi-revive/agent.env
+ExecStart=/usr/bin/python3 /opt/raspi-revive/targets/raspi-5-agent/scripts/emit_gpio_heartbeat.py --edge-output ${GPIO_HEARTBEAT_PATH} --interval-sec ${HEARTBEAT_INTERVAL_SEC} --pin ${GPIO_PIN} --pulse-hold-ms ${GPIO_PULSE_HOLD_MS} --backend ${GPIO_BACKEND}
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

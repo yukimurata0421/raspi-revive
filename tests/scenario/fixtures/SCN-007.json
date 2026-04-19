@@ -1,0 +1,87 @@
+{
+  "scenario_id": "SCN-007",
+  "injected_failure": "sustained freeze signals",
+  "expected_evidence": "gpio stale + host stale + ssh fail",
+  "expected_state": "FREEZE_SUSPECTED",
+  "expected_action": "GPIO_REBOOT",
+  "forbidden_action": "none",
+  "recovery_verification": "boot_id changes later",
+  "notes": "requires 3 cycles",
+  "threshold_overrides": {
+    "required_consecutive_freeze_suspected": 3
+  },
+  "steps": [
+    {
+      "step_id": "SCN-007-STEP-1",
+      "expected_state": "FREEZE_SUSPECTED",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": ["REMOTE_REBOOT"],
+      "observation": {
+        "ts": 1000.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:00+00:00",
+        "host_heartbeat_age_sec": 120.0,
+        "host_heartbeat_fresh": false,
+        "host_heartbeat_progressing": false,
+        "gpio_heartbeat_age_sec": 120.0,
+        "gpio_heartbeat_fresh": false,
+        "sentinel_stats_age_sec": 120.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 120.0,
+        "sentinel_state_fresh": false,
+        "ping_ok": false,
+        "ssh_ok": false
+      }
+    },
+    {
+      "step_id": "SCN-007-STEP-2",
+      "expected_state": "FREEZE_SUSPECTED",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": ["REMOTE_REBOOT"],
+      "observation": {
+        "ts": 1010.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:10+00:00",
+        "host_heartbeat_age_sec": 130.0,
+        "host_heartbeat_fresh": false,
+        "host_heartbeat_progressing": false,
+        "gpio_heartbeat_age_sec": 130.0,
+        "gpio_heartbeat_fresh": false,
+        "sentinel_stats_age_sec": 130.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 130.0,
+        "sentinel_state_fresh": false,
+        "ping_ok": false,
+        "ssh_ok": false
+      }
+    },
+    {
+      "step_id": "SCN-007-STEP-3",
+      "expected_state": "FREEZE_SUSPECTED",
+      "expected_action": "GPIO_REBOOT",
+      "forbidden_actions": [],
+      "observation": {
+        "ts": 1020.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:20+00:00",
+        "host_heartbeat_age_sec": 140.0,
+        "host_heartbeat_fresh": false,
+        "host_heartbeat_progressing": false,
+        "gpio_heartbeat_age_sec": 140.0,
+        "gpio_heartbeat_fresh": false,
+        "sentinel_stats_age_sec": 140.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 140.0,
+        "sentinel_state_fresh": false,
+        "ping_ok": false,
+        "ssh_ok": false
+      }
+    }
+  ]
+}

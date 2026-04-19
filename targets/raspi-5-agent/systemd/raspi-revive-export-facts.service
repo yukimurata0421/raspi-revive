@@ -1,0 +1,15 @@
+[Unit]
+Description=raspi-revive export runtime facts
+After=raspi-revive-host-heartbeat.service raspi-revive-gpio-heartbeat.service
+Wants=raspi-revive-host-heartbeat.service raspi-revive-gpio-heartbeat.service
+
+[Service]
+Type=simple
+User=root
+EnvironmentFile=/etc/raspi-revive/agent.env
+ExecStart=/usr/bin/python3 /opt/raspi-revive/targets/raspi-5-agent/scripts/export_runtime_facts.py --host-heartbeat ${HOST_HEARTBEAT_PATH} --gpio-heartbeat ${GPIO_HEARTBEAT_PATH} --sentinel-stats ${SENTINEL_STATS_PATH} --sentinel-state ${SENTINEL_STATE_PATH} --sentinel-events ${SENTINEL_EVENTS_PATH} --export-dir ${EXPORT_DIR} --interval-sec ${EXPORT_INTERVAL_SEC}
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

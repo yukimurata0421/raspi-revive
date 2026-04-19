@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .[dev]
+
+      - name: Public safety check
+        run: python scripts/check_public_safety.py
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Python compile check
+        run: python -m py_compile $(find src targets tests scripts -name '*.py' -type f)
+
+      - name: Unit and scenario tests
+        run: pytest -q
+
+      - name: Scenario replay
+        run: |
+          PYTHONPATH=src python -m raspi_revive.scenario_replay_cli \
+            --config targets/raspi-zero-controller/config/controller.example.toml \
+            --scenario-dir tests/scenario/fixtures

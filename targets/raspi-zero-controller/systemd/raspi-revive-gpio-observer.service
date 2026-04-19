@@ -1,0 +1,15 @@
+[Unit]
+Description=raspi-revive GPIO heartbeat observer
+After=multi-user.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/raspi-revive
+EnvironmentFile=/etc/raspi-revive/gpio-observer.env
+ExecStart=/usr/bin/python3 /opt/raspi-revive/targets/raspi-zero-controller/scripts/observe_gpio_heartbeat.py --mirror-output ${GPIO_OBSERVER_MIRROR_PATH} --pin ${GPIO_OBSERVER_PIN} --pull ${GPIO_OBSERVER_PULL} --interval-sec ${GPIO_OBSERVER_INTERVAL_SEC} --backend ${GPIO_OBSERVER_BACKEND}
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

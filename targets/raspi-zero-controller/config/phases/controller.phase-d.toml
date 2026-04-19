@@ -1,0 +1,50 @@
+[probe]
+ping_target = "<agent-host-or-ip>"
+ping_timeout_sec = 1.0
+ping_retries = 2
+ssh_target = "<agent-user>@<agent-host>"
+ssh_timeout_sec = 2.0
+ssh_retries = 2
+ssh_options = ["-i", "<controller-user-home>/.ssh/id_ed25519"]
+
+[threshold]
+host_heartbeat_stale_sec = 10.0
+gpio_heartbeat_stale_sec = 10.0
+sentinel_stats_stale_sec = 30.0
+sentinel_state_stale_sec = 30.0
+required_consecutive_sentinel_failure = 2
+required_consecutive_host_degraded = 2
+required_consecutive_freeze_suspected = 3
+
+[guard]
+cooldown_seconds = 120.0
+lockout_window_seconds = 1800.0
+max_actions_per_window = 3
+post_action_verification_wait_seconds = 180.0
+
+[paths]
+host_heartbeat_path = "/var/lib/raspi-revive-agent/host-heartbeat.json"
+gpio_heartbeat_path = "/var/lib/raspi-revive-agent/gpio-heartbeat.json"
+sentinel_stats_path = "/var/lib/raspi-revive-agent/sentinel/stats.json"
+sentinel_state_path = "/var/lib/raspi-revive-agent/sentinel/state.json"
+observations_log_path = "/var/log/raspi-revive/observations.jsonl"
+decisions_log_path = "/var/log/raspi-revive/decisions.jsonl"
+actions_log_path = "/var/log/raspi-revive/actions.jsonl"
+controller_state_path = "/var/lib/raspi-revive/state/controller-state.json"
+
+[actions]
+dry_run = false
+enable_restart_sentinel = true
+enable_remote_reboot = true
+enable_gpio_reboot = true
+enable_power_button_pulse = true
+restart_sentinel_cmd = ["ssh", "<agent-user>@<agent-host>", "sudo", "systemctl", "restart", "raspi-sentinel.service"]
+remote_reboot_cmd = ["ssh", "<agent-user>@<agent-host>", "sudo", "reboot"]
+gpio_reboot_cmd = ["/usr/local/bin/raspi-revive-gpio-reset", "--profile", "pi5-main"]
+power_button_pulse_cmd = ["/usr/local/bin/raspi-revive-power-pulse", "--profile", "pi5-main"]
+
+[loop]
+cycle_seconds = 10.0
+
+[mode]
+maintenance_mode = false

@@ -1,0 +1,36 @@
+{
+  "scenario_id": "SCN-010",
+  "injected_failure": "SSH management path only degraded",
+  "expected_evidence": "gpio fresh + host heartbeat fresh + ping ok + ssh fail",
+  "expected_state": "MANAGEMENT_PLANE_DEGRADED",
+  "expected_action": "NO_ACTION",
+  "forbidden_action": "REMOTE_REBOOT/GPIO_REBOOT",
+  "recovery_verification": "no intervention while management plane recovers",
+  "notes": "management path should be distinguished from generic network-only",
+  "steps": [
+    {
+      "step_id": "SCN-010-STEP-1",
+      "expected_state": "MANAGEMENT_PLANE_DEGRADED",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": ["REMOTE_REBOOT", "GPIO_REBOOT"],
+      "observation": {
+        "ts": 1000.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:00+00:00",
+        "host_heartbeat_age_sec": 1.0,
+        "host_heartbeat_fresh": true,
+        "host_heartbeat_progressing": true,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 1.0,
+        "sentinel_stats_fresh": true,
+        "sentinel_state_age_sec": 1.0,
+        "sentinel_state_fresh": true,
+        "ping_ok": true,
+        "ssh_ok": false
+      }
+    }
+  ]
+}

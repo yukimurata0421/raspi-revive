@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# runtime artifacts
+runtime/
+var/
+state/
+logs/
+observations.jsonl
+decisions.jsonl
+actions.jsonl
+controller-state.json
+*.jsonl
+*.log
+
+# local environment
+.env
+.env.*
+*.env
+
+# private runbook concrete files (template files are tracked)
+docs/private-runbook.md
+docs/private-runbook.ja.md

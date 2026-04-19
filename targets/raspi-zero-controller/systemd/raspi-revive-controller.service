@@ -1,0 +1,15 @@
+[Unit]
+Description=raspi-revive out-of-band recovery controller
+After=network-online.target raspi-revive-gpio-observer.service
+Wants=network-online.target raspi-revive-gpio-observer.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/raspi-revive
+ExecStart=/usr/bin/python3 /opt/raspi-revive/targets/raspi-zero-controller/scripts/run_controller.py --config /etc/raspi-revive/controller.toml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
