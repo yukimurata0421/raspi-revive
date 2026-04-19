@@ -5,6 +5,17 @@ from pathlib import Path
 import os
 import tomllib
 
+NOTIFY_DEFAULT_CANDIDATE_STATES = frozenset({"HOST_DEGRADED", "FREEZE_SUSPECTED"})
+NOTIFY_DEFAULT_CANDIDATE_HOLD_SECONDS = 300.0
+NOTIFY_DEFAULT_QUEUE_RETRY_INTERVAL_SECONDS = 60.0
+NOTIFY_DEFAULT_BACKOFF_AFTER_SECONDS = 300.0
+NOTIFY_DEFAULT_BACKOFF_MULTIPLIER = 2.0
+NOTIFY_DEFAULT_BACKOFF_MAX_SECONDS = 3600.0
+NOTIFY_DEFAULT_REMOTE_JSONL_PATH = "/var/lib/raspi-revive-agent/revive-notify-events.jsonl"
+NOTIFY_DEFAULT_STATS_FLUSH_INTERVAL_SECONDS = 60.0
+NOTIFY_DEFAULT_MAX_QUEUE_SIZE = 256
+NOTIFY_DEFAULT_MAX_EVENT_AGE_SECONDS = 86400.0
+
 
 @dataclass(slots=True)
 class ProbeConfig:
@@ -74,7 +85,7 @@ class ControllerModeConfig:
 @dataclass(slots=True)
 class NotifyConfig:
     enabled: bool
-    candidate_states: tuple[str, ...]
+    candidate_states: frozenset[str]
     candidate_hold_seconds: float
     queue_retry_interval_seconds: float
     backoff_after_seconds: float
@@ -86,9 +97,9 @@ class NotifyConfig:
     queue_path: Path
     stats_path: Path
     events_path: Path
-    stats_flush_interval_seconds: float = 60.0
-    max_queue_size: int = 256
-    max_event_age_seconds: float = 86400.0
+    stats_flush_interval_seconds: float = NOTIFY_DEFAULT_STATS_FLUSH_INTERVAL_SECONDS
+    max_queue_size: int = NOTIFY_DEFAULT_MAX_QUEUE_SIZE
+    max_event_age_seconds: float = NOTIFY_DEFAULT_MAX_EVENT_AGE_SECONDS
 
 
 @dataclass(slots=True)
@@ -187,25 +198,45 @@ def load_controller_config(path: str | Path) -> ControllerConfig:
         mode=ControllerModeConfig(maintenance_mode=bool(mode.get("maintenance_mode", False))),
         notify=NotifyConfig(
             enabled=bool(notify.get("enabled", False)),
-            candidate_states=tuple(
+            candidate_states=frozenset(
                 str(x)
-                for x in notify.get("candidate_states", ["HOST_DEGRADED", "FREEZE_SUSPECTED"])
+                for x in notify.get("candidate_states", sorted(NOTIFY_DEFAULT_CANDIDATE_STATES))
             ),
-            candidate_hold_seconds=float(notify.get("candidate_hold_seconds", 300.0)),
-            queue_retry_interval_seconds=float(notify.get("queue_retry_interval_seconds", 60.0)),
-            backoff_after_seconds=float(notify.get("backoff_after_seconds", 300.0)),
-            backoff_multiplier=float(notify.get("backoff_multiplier", 2.0)),
-            backoff_max_seconds=float(notify.get("backoff_max_seconds", 3600.0)),
+            candidate_hold_seconds=float(
+                notify.get("candidate_hold_seconds", NOTIFY_DEFAULT_CANDIDATE_HOLD_SECONDS)
+            ),
+            queue_retry_interval_seconds=float(
+                notify.get(
+                    "queue_retry_interval_seconds",
+                    NOTIFY_DEFAULT_QUEUE_RETRY_INTERVAL_SECONDS,
+                )
+            ),
+            backoff_after_seconds=float(
+                notify.get("backoff_after_seconds", NOTIFY_DEFAULT_BACKOFF_AFTER_SECONDS)
+            ),
+            backoff_multiplier=float(
+                notify.get("backoff_multiplier", NOTIFY_DEFAULT_BACKOFF_MULTIPLIER)
+            ),
+            backoff_max_seconds=float(
+                notify.get("backoff_max_seconds", NOTIFY_DEFAULT_BACKOFF_MAX_SECONDS)
+            ),
             discord_webhook_url=webhook_url,
             remote_append_enabled=bool(notify.get("remote_append_enabled", True)),
             remote_jsonl_path=str(
-                notify.get("remote_jsonl_path", "/var/lib/raspi-revive-agent/revive-notify-events.jsonl")
+                notify.get("remote_jsonl_path", NOTIFY_DEFAULT_REMOTE_JSONL_PATH)
             ),
             queue_path=_as_path(str(notify.get("queue_path", default_queue_path))),
             stats_path=_as_path(str(notify.get("stats_path", default_stats_path))),
             events_path=_as_path(str(notify.get("events_path", default_events_path))),
-            stats_flush_interval_seconds=float(notify.get("stats_flush_interval_seconds", 60.0)),
-            max_queue_size=int(notify.get("max_queue_size", 256)),
-            max_event_age_seconds=float(notify.get("max_event_age_seconds", 86400.0)),
+            stats_flush_interval_seconds=float(
+                notify.get(
+                    "stats_flush_interval_seconds",
+                    NOTIFY_DEFAULT_STATS_FLUSH_INTERVAL_SECONDS,
+                )
+            ),
+            max_queue_size=int(notify.get("max_queue_size", NOTIFY_DEFAULT_MAX_QUEUE_SIZE)),
+            max_event_age_seconds=float(
+                notify.get("max_event_age_seconds", NOTIFY_DEFAULT_MAX_EVENT_AGE_SECONDS)
+            ),
         ),
     )

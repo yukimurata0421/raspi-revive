@@ -148,9 +148,9 @@ class ControllerRuntimeState:
             }
         return {
             "current_state": self.current_state.value,
-            "consecutive_counts": self.consecutive_counts,
+            "consecutive_counts": dict(self.consecutive_counts),
             "last_action_ts": self.last_action_ts,
-            "action_timestamps": self.action_timestamps,
+            "action_timestamps": list(self.action_timestamps),
             "lockout_until_ts": self.lockout_until_ts,
             "pending_verification": pending,
             "previous_host_boot_id": self.previous_host_boot_id,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from .audit import AuditLogger
 from .collector import ObservationCollector
 from .config import ControllerConfig
@@ -8,7 +10,7 @@ from .executor import ActionExecutor
 from .models import ControllerRuntimeState, RecoveryAction
 from .notifier import NotifyDispatcher
 from .state_machine import StateMachine
-from .state_store import load_runtime_state, save_runtime_state_if_changed
+from .state_store import load_runtime_state, save_runtime_state
 
 
 class ReviveController:
@@ -20,13 +22,14 @@ class ReviveController:
         self._audit = AuditLogger(config.paths)
         self._notifier = NotifyDispatcher(config)
         self._runtime_state = load_runtime_state(config.paths.controller_state_path)
+        # Force one baseline write after startup, then track actual persisted value.
+        self._last_persisted_state: dict[str, Any] | None = None
 
     @property
     def runtime_state(self) -> ControllerRuntimeState:
         return self._runtime_state
 
     def run_cycle(self) -> None:
-        previous_state = self._runtime_state.to_dict()
         obs = self._collector.collect(self._runtime_state.previous_host_seq)
         cycle_ts = obs.ts
         classification = classify(obs)
@@ -94,8 +97,7 @@ class ReviveController:
         self._runtime_state.previous_host_boot_id = obs.host_boot_id
         self._runtime_state.previous_host_seq = obs.host_seq
         self._notifier.handle_cycle(decision, obs)
-        save_runtime_state_if_changed(
-            self._config.paths.controller_state_path,
-            previous_state,
-            self._runtime_state,
-        )
+        current_state = self._runtime_state.to_dict()
+        if not self._config.paths.controller_state_path.exists() or self._last_persisted_state != current_state:
+            save_runtime_state(self._config.paths.controller_state_path, self._runtime_state)
+            self._last_persisted_state = current_state

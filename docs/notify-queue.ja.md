@@ -38,6 +38,7 @@
 - キューには最大件数（`max_queue_size`）を設定。
 - 上限超過時は最古イベントを破棄。
 - `max_event_age_seconds` を超えた古いイベントは期限切れとして破棄。
+- 期限切れイベントは、同一 incident key に対して自動再 enqueue しません。
 
 ## Runtime ファイル
 
@@ -47,6 +48,7 @@
 
 `notify-stats.json` はメモリ主体で、`stats_flush_interval_seconds`（既定60秒）
 ごとにフラッシュして書き込み回数を抑えます。
+キュー件数は `notify-stats.json` ではなく `notify-queue.json` の `items` 長を参照します。
 
 これらは controller 側 runtime artifact であり、リポジトリへコミットしません。
 

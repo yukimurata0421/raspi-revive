@@ -39,6 +39,7 @@ The event is removed from queue only after all enabled targets succeed.
 - Queue has a maximum size (`max_queue_size`).
 - Oldest events are dropped on overflow.
 - Events older than `max_event_age_seconds` are dropped as expired.
+- Expired events are not automatically re-enqueued for the same incident key.
 
 ## Runtime Files
 
@@ -48,6 +49,7 @@ The event is removed from queue only after all enabled targets succeed.
 
 `notify-stats.json` is memory-first. It is flushed periodically by
 `stats_flush_interval_seconds` (default: 60s) to reduce write frequency.
+Queue size should be read from `notify-queue.json` (`items` length), not stats.
 
 These files are controller-side runtime artifacts and must not be committed.
 

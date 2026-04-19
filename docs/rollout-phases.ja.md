@@ -107,6 +107,7 @@ tail -n 200 /var/log/raspi-revive/actions.jsonl
 - host-degraded の gate 成立時のみ remote reboot
 - reboot 後 verification が `boot_id` 変化で完了
 - cooldown/lockout で reboot loop を抑止
+- `host_heartbeat_progressing` を注意書きから gate に昇格させるか判断する
 
 ロールバック条件:
 

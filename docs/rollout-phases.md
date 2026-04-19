@@ -107,6 +107,7 @@ Exit criteria:
 - host-degraded incidents escalate to remote reboot only when gates match
 - post-action verification tracks reboot via `boot_id` change
 - lockout/cooldown stop repeated reboot loops
+- decide whether to promote `host_heartbeat_progressing` from note to enforced gate
 
 Rollback trigger:
 

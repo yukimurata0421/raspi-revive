@@ -69,7 +69,7 @@ def _build_config(tmp_path: Path, *, webhook_url: str) -> ControllerConfig:
         mode=ControllerModeConfig(maintenance_mode=False),
         notify=NotifyConfig(
             enabled=True,
-            candidate_states=("HOST_DEGRADED", "FREEZE_SUSPECTED"),
+            candidate_states=frozenset({"HOST_DEGRADED", "FREEZE_SUSPECTED"}),
             candidate_hold_seconds=300.0,
             queue_retry_interval_seconds=60.0,
             backoff_after_seconds=300.0,
