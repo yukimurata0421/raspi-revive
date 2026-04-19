@@ -64,3 +64,7 @@ remote_jsonl_path = "/var/lib/raspi-revive-agent/revive-notify-events.jsonl"
 queue_path = "/var/lib/raspi-revive/state/notify-queue.json"
 stats_path = "/var/lib/raspi-revive/state/notify-stats.json"
 events_path = "/var/log/raspi-revive/notify-events.jsonl"
+stats_flush_interval_seconds = 60.0
+
+max_queue_size = 256
+max_event_age_seconds = 86400.0

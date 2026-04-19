@@ -4,6 +4,7 @@ from __future__ import annotations
 import ipaddress
 import re
 from pathlib import Path
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -103,6 +104,25 @@ def _check_runtime_artifacts_presence(errors: list[str]) -> None:
             )
 
 
+def _check_phase_config_consistency(errors: list[str]) -> None:
+    phase_paths = sorted((REPO_ROOT / "targets/raspi-zero-controller/config/phases").glob("controller.phase-*.toml"))
+    if len(phase_paths) < 2:
+        return
+    baseline_path = phase_paths[0]
+    with baseline_path.open("rb") as f:
+        baseline = tomllib.load(f)
+    baseline_without_actions = {k: v for k, v in baseline.items() if k != "actions"}
+
+    for path in phase_paths[1:]:
+        with path.open("rb") as f:
+            payload = tomllib.load(f)
+        payload_without_actions = {k: v for k, v in payload.items() if k != "actions"}
+        if payload_without_actions != baseline_without_actions:
+            errors.append(
+                f"{path.relative_to(REPO_ROOT)}: phase config drift detected outside [actions] section"
+            )
+
+
 def main() -> int:
     errors: list[str] = []
 
@@ -132,6 +152,7 @@ def main() -> int:
 
     _check_private_runbook_presence(errors)
     _check_runtime_artifacts_presence(errors)
+    _check_phase_config_consistency(errors)
 
     if errors:
         print("[FAIL] public safety check")

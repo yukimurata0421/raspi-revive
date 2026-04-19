@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shlex
 import subprocess
+import ssl
 import urllib.error
 import urllib.request
 
@@ -78,11 +79,15 @@ class NotifyDispatcher:
     config: ControllerConfig
     _state: NotifyState = field(init=False)
     _queue: list[dict] = field(init=False, default_factory=list)
+    _queue_dirty: bool = field(init=False, default=False)
+    _stats_dirty: bool = field(init=False, default=False)
+    _last_stats_flush_ts: float | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self._state = NotifyState.from_json(read_json(self.config.notify.stats_path))
         payload = read_json(self.config.notify.queue_path)
         self._queue: list[dict] = payload["items"] if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
+        self._last_stats_flush_ts = None
 
     def handle_cycle(self, decision: Decision, obs: Observation) -> None:
         now_ts = obs.ts
@@ -91,7 +96,7 @@ class NotifyDispatcher:
 
         self._track_candidate(decision, obs, now_ts)
         self._drain_queue(now_ts)
-        self._save_state()
+        self._flush_persistence(now_ts)
 
     def _track_candidate(self, decision: Decision, obs: Observation, now_ts: float) -> None:
         state = decision.classified_state.value
@@ -108,12 +113,14 @@ class NotifyDispatcher:
             self._state.candidate_incident_key = None
             self._state.candidate_state = None
             self._state.candidate_since_ts = None
+            self._stats_dirty = True
             return
 
         if self._state.candidate_since_ts is None or incident_changed:
             self._state.candidate_incident_key = decision.incident_key
             self._state.candidate_state = state
             self._state.candidate_since_ts = now_ts
+            self._stats_dirty = True
             self._append_event(
                 "candidate_started",
                 now_ts,
@@ -127,9 +134,12 @@ class NotifyDispatcher:
             and self._state.last_notified_incident_key != decision.incident_key
         ):
             item = self._build_queue_item(decision, obs, now_ts, duration)
+            self._trim_queue_for_new_item(now_ts)
             self._queue.append(item)
+            self._queue_dirty = True
             self._state.last_notified_incident_key = decision.incident_key
             self._state.last_notified_ts = now_ts
+            self._stats_dirty = True
             self._append_event("enqueued", now_ts, {"event_id": item["event_id"], "incident_key": decision.incident_key})
 
     def _build_queue_item(self, decision: Decision, obs: Observation, now_ts: float, duration: float) -> dict:
@@ -165,6 +175,7 @@ class NotifyDispatcher:
         }
 
     def _drain_queue(self, now_ts: float) -> None:
+        self._drop_expired_items(now_ts)
         remaining: list[dict] = []
         for item in self._queue:
             if now_ts < float(item.get("next_retry_ts", 0.0)):
@@ -193,6 +204,8 @@ class NotifyDispatcher:
                 not self.config.notify.discord_webhook_url or item.get("discord_delivered")
             ):
                 self._state.last_delivery_ts = now_ts
+                self._stats_dirty = True
+                self._queue_dirty = True
                 self._append_event("delivery_complete", now_ts, {"event_id": item["event_id"]})
                 continue
 
@@ -210,6 +223,8 @@ class NotifyDispatcher:
             )
             item["next_retry_ts"] = now_ts + delay
             self._state.last_failure_ts = now_ts
+            self._stats_dirty = True
+            self._queue_dirty = True
             self._append_event(
                 "delivery_failed",
                 now_ts,
@@ -223,6 +238,31 @@ class NotifyDispatcher:
             remaining.append(item)
 
         self._queue = remaining
+
+    def _drop_expired_items(self, now_ts: float) -> None:
+        kept: list[dict] = []
+        for item in self._queue:
+            created_ts = float(item.get("created_ts", now_ts))
+            if (now_ts - created_ts) > self.config.notify.max_event_age_seconds:
+                self._append_event(
+                    "dropped_expired",
+                    now_ts,
+                    {"event_id": item.get("event_id"), "age_seconds": round(now_ts - created_ts, 1)},
+                )
+                self._queue_dirty = True
+                continue
+            kept.append(item)
+        self._queue = kept
+
+    def _trim_queue_for_new_item(self, now_ts: float) -> None:
+        while len(self._queue) >= self.config.notify.max_queue_size:
+            dropped = self._queue.pop(0)
+            self._queue_dirty = True
+            self._append_event(
+                "dropped_overflow",
+                now_ts,
+                {"event_id": dropped.get("event_id"), "max_queue_size": self.config.notify.max_queue_size},
+            )
 
     def _append_remote_jsonl(self, payload: dict) -> tuple[bool, str | None]:
         json_line = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
@@ -259,10 +299,13 @@ class NotifyDispatcher:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         try:
-            with urllib.request.urlopen(req, timeout=10):
+            with opener.open(req, timeout=10):
                 return True, None
         except urllib.error.URLError as exc:
+            if isinstance(exc.reason, ssl.SSLCertVerificationError):
+                return False, f"discord_tls_error(clock_skew_or_cert): {exc.reason}"
             return False, f"discord_url_error: {exc}"
         except TimeoutError as exc:
             return False, f"discord_timeout: {exc}"
@@ -278,6 +321,24 @@ class NotifyDispatcher:
             },
         )
 
-    def _save_state(self) -> None:
-        write_json_atomic(self.config.notify.queue_path, {"items": self._queue})
-        write_json_atomic(self.config.notify.stats_path, self._state.to_json(queue_size=len(self._queue)))
+    def _flush_persistence(self, now_ts: float) -> None:
+        if self._queue_dirty:
+            self._stats_dirty = True
+        if self._queue_dirty:
+            write_json_atomic(self.config.notify.queue_path, {"items": self._queue})
+            self._queue_dirty = False
+
+        flush_interval = max(0.0, self.config.notify.stats_flush_interval_seconds)
+        should_flush_stats = False
+        if self._stats_dirty:
+            if flush_interval == 0.0:
+                should_flush_stats = True
+            elif self._last_stats_flush_ts is None:
+                should_flush_stats = True
+            elif (now_ts - self._last_stats_flush_ts) >= flush_interval:
+                should_flush_stats = True
+
+        if should_flush_stats:
+            write_json_atomic(self.config.notify.stats_path, self._state.to_json(queue_size=len(self._queue)))
+            self._last_stats_flush_ts = now_ts
+            self._stats_dirty = False

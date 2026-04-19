@@ -26,6 +26,9 @@ def build_evidence(obs: Observation) -> Evidence:
 
 def classify(obs: Observation) -> Classification:
     ev = build_evidence(obs)
+    # NOTE: host_heartbeat_progressing is captured in Evidence but not yet used in
+    # classification gates. For future hardening, consider treating sustained
+    # "fresh-but-not-progressing" heartbeat as degradation signal.
 
     if ev.gpio_fresh and ev.host_heartbeat_fresh and ev.ping_ok and (not ev.ssh_ok):
         return Classification(

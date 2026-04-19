@@ -33,11 +33,20 @@
   - `delay = base * backoff_multiplier^n`
   - `backoff_max_seconds` で上限
 
+## キュー上限
+
+- キューには最大件数（`max_queue_size`）を設定。
+- 上限超過時は最古イベントを破棄。
+- `max_event_age_seconds` を超えた古いイベントは期限切れとして破棄。
+
 ## Runtime ファイル
 
 - Queue: `notify-queue.json`
 - Stats: `notify-stats.json`
 - Events: `notify-events.jsonl`
+
+`notify-stats.json` はメモリ主体で、`stats_flush_interval_seconds`（既定60秒）
+ごとにフラッシュして書き込み回数を抑えます。
 
 これらは controller 側 runtime artifact であり、リポジトリへコミットしません。
 

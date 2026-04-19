@@ -34,11 +34,20 @@ The event is removed from queue only after all enabled targets succeed.
   - `delay = base * backoff_multiplier^n`
   - capped by `backoff_max_seconds`
 
+## Queue Bounds
+
+- Queue has a maximum size (`max_queue_size`).
+- Oldest events are dropped on overflow.
+- Events older than `max_event_age_seconds` are dropped as expired.
+
 ## Runtime Files
 
 - Queue: `notify-queue.json`
 - Stats: `notify-stats.json`
 - Events: `notify-events.jsonl`
+
+`notify-stats.json` is memory-first. It is flushed periodically by
+`stats_flush_interval_seconds` (default: 60s) to reduce write frequency.
 
 These files are controller-side runtime artifacts and must not be committed.
 

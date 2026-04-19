@@ -34,10 +34,8 @@
    - `gpio_fresh` and `host_heartbeat_fresh` and `ssh_ok`
    - かつ `sentinel_stats_fresh == false` または `sentinel_state_fresh == false`
 4. `HOST_DEGRADED`
-   - `ssh_ok`
-   - かつ次のどちらか:
-     - `not gpio_fresh` and `not host_heartbeat_fresh`
-     - `not host_heartbeat_fresh` and sentinel stale
+   - 式:
+     - `ssh_ok AND ( (not gpio_fresh AND not host_heartbeat_fresh) OR (not host_heartbeat_fresh AND sentinel stale) )`
 5. `FREEZE_SUSPECTED`
    - `not gpio_fresh` and `not host_heartbeat_fresh` and `not ssh_ok`
    - GPIO reboot 前に required consecutive cycles を満たす

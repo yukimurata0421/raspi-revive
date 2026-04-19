@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import time
-
 from .audit import AuditLogger
 from .collector import ObservationCollector
 from .config import ControllerConfig
@@ -10,7 +8,7 @@ from .executor import ActionExecutor
 from .models import ControllerRuntimeState, RecoveryAction
 from .notifier import NotifyDispatcher
 from .state_machine import StateMachine
-from .state_store import load_runtime_state, save_runtime_state
+from .state_store import load_runtime_state, save_runtime_state_if_changed
 
 
 class ReviveController:
@@ -28,7 +26,9 @@ class ReviveController:
         return self._runtime_state
 
     def run_cycle(self) -> None:
+        previous_state = self._runtime_state.to_dict()
         obs = self._collector.collect(self._runtime_state.previous_host_seq)
+        cycle_ts = obs.ts
         classification = classify(obs)
         decision = self._state_machine.decide(
             self._runtime_state,
@@ -39,11 +39,12 @@ class ReviveController:
         self._runtime_state.current_state = decision.classified_state
 
         self._audit.log_observation(
+            ts=cycle_ts,
             controller_state=self._runtime_state.current_state.value,
             correlation_id=decision.correlation_id,
             observation=obs,
         )
-        self._audit.log_decision(decision)
+        self._audit.log_decision(cycle_ts, decision)
 
         execution_payload = {
             "executed": False,
@@ -68,7 +69,7 @@ class ReviveController:
             )
 
         self._audit.log_action(
-            ts=time.time(),
+            ts=cycle_ts,
             controller_state=self._runtime_state.current_state.value,
             correlation_id=decision.correlation_id,
             chosen_action=decision.chosen_action.value,
@@ -93,4 +94,8 @@ class ReviveController:
         self._runtime_state.previous_host_boot_id = obs.host_boot_id
         self._runtime_state.previous_host_seq = obs.host_seq
         self._notifier.handle_cycle(decision, obs)
-        save_runtime_state(self._config.paths.controller_state_path, self._runtime_state)
+        save_runtime_state_if_changed(
+            self._config.paths.controller_state_path,
+            previous_state,
+            self._runtime_state,
+        )

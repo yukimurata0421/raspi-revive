@@ -31,6 +31,10 @@ class FileHeartbeatInput:
         payload = read_json(self.path)
         if payload is None:
             return None
+        observer_status = payload.get("observer_status")
+        if isinstance(observer_status, str) and observer_status not in {"ok", "dry_run"}:
+            # Do not treat stale edge cache as fresh when observer is unhealthy.
+            return None
         wall = payload.get("last_edge_wall_time")
         if not isinstance(wall, str):
             return None

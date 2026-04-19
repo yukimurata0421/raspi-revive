@@ -86,6 +86,9 @@ class NotifyConfig:
     queue_path: Path
     stats_path: Path
     events_path: Path
+    stats_flush_interval_seconds: float = 60.0
+    max_queue_size: int = 256
+    max_event_age_seconds: float = 86400.0
 
 
 @dataclass(slots=True)
@@ -201,5 +204,8 @@ def load_controller_config(path: str | Path) -> ControllerConfig:
             queue_path=_as_path(str(notify.get("queue_path", default_queue_path))),
             stats_path=_as_path(str(notify.get("stats_path", default_stats_path))),
             events_path=_as_path(str(notify.get("events_path", default_events_path))),
+            stats_flush_interval_seconds=float(notify.get("stats_flush_interval_seconds", 60.0)),
+            max_queue_size=int(notify.get("max_queue_size", 256)),
+            max_event_age_seconds=float(notify.get("max_event_age_seconds", 86400.0)),
         ),
     )

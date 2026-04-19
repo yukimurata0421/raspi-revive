@@ -173,3 +173,24 @@ def test_notifier_retries_and_switches_to_exponential_backoff(tmp_path: Path, mo
     third = json.loads(config.notify.queue_path.read_text(encoding="utf-8"))["items"][0]
     assert third["attempt_count"] == 3
     assert third["next_retry_ts"] >= 722.0
+
+
+def test_notifier_drops_expired_items(tmp_path: Path, monkeypatch) -> None:
+    config = _build_config(tmp_path, webhook_url="https://example.test/webhook")
+    config.notify.max_event_age_seconds = 10.0
+    dispatcher = NotifyDispatcher(config)
+    monkeypatch.setattr(
+        NotifyDispatcher,
+        "_send_discord",
+        lambda self, payload: (False, "network down"),
+    )
+
+    decision = _decision()
+    dispatcher.handle_cycle(decision, _observation(0.0))
+    dispatcher.handle_cycle(decision, _observation(301.0))
+    dispatcher.handle_cycle(decision, _observation(400.0))
+
+    queue_payload = json.loads(config.notify.queue_path.read_text(encoding="utf-8"))
+    assert queue_payload["items"] == []
+    events = config.notify.events_path.read_text(encoding="utf-8")
+    assert "dropped_expired" in events

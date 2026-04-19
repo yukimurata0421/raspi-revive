@@ -34,10 +34,8 @@
    - `gpio_fresh` and `host_heartbeat_fresh` and `ssh_ok`
    - and (`sentinel_stats_fresh == false` or `sentinel_state_fresh == false`)
 4. `HOST_DEGRADED`
-   - `ssh_ok`
-   - and one of:
-     - `not gpio_fresh` and `not host_heartbeat_fresh`
-     - `not host_heartbeat_fresh` and sentinel stale
+   - formula:
+     - `ssh_ok AND ( (not gpio_fresh AND not host_heartbeat_fresh) OR (not host_heartbeat_fresh AND sentinel stale) )`
 5. `FREEZE_SUSPECTED`
    - `not gpio_fresh` and `not host_heartbeat_fresh` and `not ssh_ok`
    - required consecutive cycles must be satisfied before GPIO reboot

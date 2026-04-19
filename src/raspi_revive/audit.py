@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-import time
 
 from .config import PathConfig
 from .io import append_jsonl
@@ -12,18 +11,24 @@ class AuditLogger:
     def __init__(self, paths: PathConfig) -> None:
         self._paths = paths
 
-    def log_observation(self, controller_state: str, correlation_id: str, observation: Observation) -> None:
+    def log_observation(
+        self,
+        ts: float,
+        controller_state: str,
+        correlation_id: str,
+        observation: Observation,
+    ) -> None:
         payload = {
-            "ts": observation.ts,
+            "ts": ts,
             "controller_state": controller_state,
             "correlation_id": correlation_id,
             "observation": asdict(observation),
         }
         append_jsonl(self._paths.observations_log_path, payload)
 
-    def log_decision(self, decision: Decision) -> None:
+    def log_decision(self, ts: float, decision: Decision) -> None:
         payload = {
-            "ts": time.time(),
+            "ts": ts,
             "controller_state": decision.classified_state.value,
             "correlation_id": decision.correlation_id,
             "incident_key": decision.incident_key,
