@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import os
 import tomllib
 
 
@@ -71,6 +72,23 @@ class ControllerModeConfig:
 
 
 @dataclass(slots=True)
+class NotifyConfig:
+    enabled: bool
+    candidate_states: tuple[str, ...]
+    candidate_hold_seconds: float
+    queue_retry_interval_seconds: float
+    backoff_after_seconds: float
+    backoff_multiplier: float
+    backoff_max_seconds: float
+    discord_webhook_url: str
+    remote_append_enabled: bool
+    remote_jsonl_path: str
+    queue_path: Path
+    stats_path: Path
+    events_path: Path
+
+
+@dataclass(slots=True)
 class ControllerConfig:
     probe: ProbeConfig
     threshold: ThresholdConfig
@@ -79,6 +97,7 @@ class ControllerConfig:
     actions: ActionConfig
     loop: LoopConfig
     mode: ControllerModeConfig
+    notify: NotifyConfig
 
 
 def _as_path(raw: str) -> Path:
@@ -96,6 +115,16 @@ def load_controller_config(path: str | Path) -> ControllerConfig:
     actions = data["actions"]
     loop = data.get("loop", {})
     mode = data.get("mode", {})
+    notify = data.get("notify", {})
+
+    webhook_url = str(notify.get("discord_webhook_url", "")).strip()
+    webhook_env = str(notify.get("discord_webhook_url_env", "")).strip()
+    if webhook_env:
+        webhook_url = os.getenv(webhook_env, webhook_url).strip()
+
+    default_queue_path = _as_path(str(_as_path(paths["controller_state_path"]).with_name("notify-queue.json")))
+    default_stats_path = _as_path(str(_as_path(paths["controller_state_path"]).with_name("notify-stats.json")))
+    default_events_path = _as_path(str(_as_path(paths["actions_log_path"]).with_name("notify-events.jsonl")))
 
     return ControllerConfig(
         probe=ProbeConfig(
@@ -153,4 +182,24 @@ def load_controller_config(path: str | Path) -> ControllerConfig:
         ),
         loop=LoopConfig(cycle_seconds=float(loop.get("cycle_seconds", 10.0))),
         mode=ControllerModeConfig(maintenance_mode=bool(mode.get("maintenance_mode", False))),
+        notify=NotifyConfig(
+            enabled=bool(notify.get("enabled", False)),
+            candidate_states=tuple(
+                str(x)
+                for x in notify.get("candidate_states", ["HOST_DEGRADED", "FREEZE_SUSPECTED"])
+            ),
+            candidate_hold_seconds=float(notify.get("candidate_hold_seconds", 300.0)),
+            queue_retry_interval_seconds=float(notify.get("queue_retry_interval_seconds", 60.0)),
+            backoff_after_seconds=float(notify.get("backoff_after_seconds", 300.0)),
+            backoff_multiplier=float(notify.get("backoff_multiplier", 2.0)),
+            backoff_max_seconds=float(notify.get("backoff_max_seconds", 3600.0)),
+            discord_webhook_url=webhook_url,
+            remote_append_enabled=bool(notify.get("remote_append_enabled", True)),
+            remote_jsonl_path=str(
+                notify.get("remote_jsonl_path", "/var/lib/raspi-revive-agent/revive-notify-events.jsonl")
+            ),
+            queue_path=_as_path(str(notify.get("queue_path", default_queue_path))),
+            stats_path=_as_path(str(notify.get("stats_path", default_stats_path))),
+            events_path=_as_path(str(notify.get("events_path", default_events_path))),
+        ),
     )

@@ -8,6 +8,7 @@ from raspi_revive.config import (
     ControllerModeConfig,
     GuardConfig,
     LoopConfig,
+    NotifyConfig,
     PathConfig,
     ProbeConfig,
     ThresholdConfig,
@@ -66,6 +67,21 @@ def build_config(tmp_path: Path) -> ControllerConfig:
         ),
         loop=LoopConfig(cycle_seconds=1.0),
         mode=ControllerModeConfig(maintenance_mode=False),
+        notify=NotifyConfig(
+            enabled=False,
+            candidate_states=("HOST_DEGRADED", "FREEZE_SUSPECTED"),
+            candidate_hold_seconds=300.0,
+            queue_retry_interval_seconds=60.0,
+            backoff_after_seconds=300.0,
+            backoff_multiplier=2.0,
+            backoff_max_seconds=3600.0,
+            discord_webhook_url="",
+            remote_append_enabled=False,
+            remote_jsonl_path="/tmp/unused.jsonl",
+            queue_path=tmp_path / "notify-queue.json",
+            stats_path=tmp_path / "notify-stats.json",
+            events_path=tmp_path / "notify-events.jsonl",
+        ),
     )
 
 

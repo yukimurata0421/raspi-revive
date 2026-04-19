@@ -48,3 +48,19 @@ cycle_seconds = 10.0
 
 [mode]
 maintenance_mode = false
+
+[notify]
+enabled = false
+candidate_states = ["HOST_DEGRADED", "FREEZE_SUSPECTED"]
+candidate_hold_seconds = 300.0
+queue_retry_interval_seconds = 60.0
+backoff_after_seconds = 300.0
+backoff_multiplier = 2.0
+backoff_max_seconds = 3600.0
+discord_webhook_url = ""
+discord_webhook_url_env = "RASPI_REVIVE_DISCORD_WEBHOOK_URL"
+remote_append_enabled = true
+remote_jsonl_path = "/var/lib/raspi-revive-agent/revive-notify-events.jsonl"
+queue_path = "/var/lib/raspi-revive/state/notify-queue.json"
+stats_path = "/var/lib/raspi-revive/state/notify-stats.json"
+events_path = "/var/log/raspi-revive/notify-events.jsonl"

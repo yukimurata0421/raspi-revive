@@ -67,6 +67,19 @@
 - `decisions.jsonl`
 - `actions.jsonl`
 - controller state JSON
+- 任意通知ファイル: `notify-events.jsonl`、`notify-stats.json`、`notify-queue.json`
+
+## 任意通知キュー（復旧アクション無効のまま利用可能）
+
+- restart/reboot を無効のまま、通知専用ポリシーを有効化できます。
+- `HOST_DEGRADED` または `FREEZE_SUSPECTED` が 5 分以上連続した場合、通知イベントを enqueue します。
+- queue イベントは次を試行します。
+  - SSH 経由で Pi 5 側 JSONL へ append（`notify.remote_jsonl_path`）
+  - Discord webhook 送信
+- 送達リトライ方針:
+  - 失敗継続 5 分未満は 60 秒間隔でリトライ
+  - 5 分連続失敗後は指数バックオフ
+- secret 直書きは避け、`notify.discord_webhook_url_env` で `RASPI_REVIVE_DISCORD_WEBHOOK_URL` を使います。
 
 ## Scenario Replay Harness
 
@@ -95,6 +108,7 @@ python3 -m raspi_revive.scenario_replay_cli \
 - 段階投入: [`docs/rollout-phases.ja.md`](docs/rollout-phases.ja.md)
 - Phase A 実機チェック: [`docs/phase-a-validation-checklist.ja.md`](docs/phase-a-validation-checklist.ja.md)
 - 設計判断: [`docs/engineering-decisions.ja.md`](docs/engineering-decisions.ja.md)
+- Notify Queue 設計: [`docs/notify-queue.ja.md`](docs/notify-queue.ja.md)
 - 公開向け運用ノート雛形: [`docs/ops-notes.ja.md`](docs/ops-notes.ja.md)
 - private runbook 雛形（実値を入れた版は公開外で管理）: [`docs/private-runbook.template.ja.md`](docs/private-runbook.template.ja.md)
 

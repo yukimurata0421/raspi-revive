@@ -8,6 +8,7 @@ from .config import ControllerConfig
 from .evaluator import classify
 from .executor import ActionExecutor
 from .models import ControllerRuntimeState, RecoveryAction
+from .notifier import NotifyDispatcher
 from .state_machine import StateMachine
 from .state_store import load_runtime_state, save_runtime_state
 
@@ -19,6 +20,7 @@ class ReviveController:
         self._state_machine = StateMachine(config)
         self._executor = ActionExecutor(config.actions)
         self._audit = AuditLogger(config.paths)
+        self._notifier = NotifyDispatcher(config)
         self._runtime_state = load_runtime_state(config.paths.controller_state_path)
 
     @property
@@ -90,4 +92,5 @@ class ReviveController:
 
         self._runtime_state.previous_host_boot_id = obs.host_boot_id
         self._runtime_state.previous_host_seq = obs.host_seq
+        self._notifier.handle_cycle(decision, obs)
         save_runtime_state(self._config.paths.controller_state_path, self._runtime_state)

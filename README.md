@@ -67,6 +67,19 @@ Role split:
 - `decisions.jsonl`
 - `actions.jsonl`
 - controller state JSON
+- optional notify files: `notify-events.jsonl`, `notify-stats.json`, `notify-queue.json`
+
+## Optional Notify Queue (No Recovery Action Required)
+
+- You can enable a notification-only policy while keeping restart/reboot actions disabled.
+- When `HOST_DEGRADED` or `FREEZE_SUSPECTED` stays continuous for 5+ minutes, controller enqueues a notify event.
+- The queued event tries:
+  - append JSONL to the Pi 5 over SSH (`notify.remote_jsonl_path`)
+  - Discord webhook post
+- Delivery retry policy:
+  - every 60 seconds while failures are under 5 minutes
+  - exponential backoff after 5 minutes of continuous failure
+- Use `RASPI_REVIVE_DISCORD_WEBHOOK_URL` via `notify.discord_webhook_url_env` instead of hard-coding secrets.
 
 ## Scenario Replay Harness
 
@@ -95,6 +108,7 @@ You can filter specific scenarios by repeating `--scenario-id`.
 - Staged rollout: [`docs/rollout-phases.md`](docs/rollout-phases.md)
 - Phase A field checklist: [`docs/phase-a-validation-checklist.md`](docs/phase-a-validation-checklist.md)
 - Engineering rationale: [`docs/engineering-decisions.md`](docs/engineering-decisions.md)
+- Notify queue design: [`docs/notify-queue.md`](docs/notify-queue.md)
 - Public ops note template: [`docs/ops-notes.md`](docs/ops-notes.md)
 - Private runbook template (fill outside public repo): [`docs/private-runbook.template.md`](docs/private-runbook.template.md)
 
