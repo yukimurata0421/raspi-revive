@@ -30,6 +30,7 @@ sentinel_state_path = "/var/lib/raspi-revive-agent/sentinel/state.json"
 observations_log_path = "/var/log/raspi-revive/observations.jsonl"
 decisions_log_path = "/var/log/raspi-revive/decisions.jsonl"
 actions_log_path = "/var/log/raspi-revive/actions.jsonl"
+events_log_path = "/var/log/raspi-revive/events.jsonl"
 controller_state_path = "/var/lib/raspi-revive/state/controller-state.json"
 
 [actions]

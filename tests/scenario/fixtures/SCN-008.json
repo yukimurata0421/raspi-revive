@@ -4,7 +4,7 @@
   "expected_evidence": "actions reach limit",
   "expected_state": "LOCKOUT",
   "expected_action": "NO_ACTION",
-  "forbidden_action": "any intervention in lockout",
+  "forbidden_action": "any intervention in lockout (including POWER_BUTTON_PULSE)",
   "recovery_verification": "lockout latch event appears",
   "notes": "force lockout quickly",
   "guard_overrides": {
@@ -20,7 +20,10 @@
       "step_id": "SCN-008-STEP-1",
       "expected_state": "SENTINEL_ONLY_FAILURE",
       "expected_action": "RESTART_SENTINEL",
-      "forbidden_actions": ["GPIO_REBOOT"],
+      "forbidden_actions": [
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1000.0,
         "host_boot_id": "boot-a",
@@ -44,7 +47,10 @@
       "step_id": "SCN-008-STEP-2",
       "expected_state": "HOST_DEGRADED",
       "expected_action": "REMOTE_REBOOT",
-      "forbidden_actions": ["GPIO_REBOOT"],
+      "forbidden_actions": [
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1010.0,
         "host_boot_id": "boot-a",
@@ -68,7 +74,12 @@
       "step_id": "SCN-008-STEP-3",
       "expected_state": "LOCKOUT",
       "expected_action": "NO_ACTION",
-      "forbidden_actions": ["RESTART_SENTINEL", "REMOTE_REBOOT", "GPIO_REBOOT"],
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1020.0,
         "host_boot_id": "boot-a",

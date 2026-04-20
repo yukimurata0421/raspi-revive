@@ -60,6 +60,7 @@ def build_config(tmp_path: Path) -> ControllerConfig:
             observations_log_path=tmp_path / "observations.jsonl",
             decisions_log_path=tmp_path / "decisions.jsonl",
             actions_log_path=tmp_path / "actions.jsonl",
+            events_log_path=tmp_path / "events.jsonl",
             controller_state_path=tmp_path / "controller-state.json",
         ),
         actions=ActionConfig(

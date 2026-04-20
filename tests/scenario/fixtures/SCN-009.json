@@ -4,7 +4,7 @@
   "expected_evidence": "fault classified but action blocked",
   "expected_state": "SENTINEL_ONLY_FAILURE",
   "expected_action": "NO_ACTION",
-  "forbidden_action": "all interventions",
+  "forbidden_action": "RESTART_SENTINEL/REMOTE_REBOOT/GPIO_REBOOT/POWER_BUTTON_PULSE",
   "recovery_verification": "decision/audit continue",
   "notes": "maintenance gate",
   "maintenance_mode": true,
@@ -13,7 +13,12 @@
       "step_id": "SCN-009-STEP-1",
       "expected_state": "SENTINEL_ONLY_FAILURE",
       "expected_action": "NO_ACTION",
-      "forbidden_actions": ["RESTART_SENTINEL", "REMOTE_REBOOT", "GPIO_REBOOT"],
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1000.0,
         "host_boot_id": "boot-a",

@@ -48,6 +48,7 @@ Role split:
 - `cooldown_seconds` suppresses immediate repeated actions.
 - `max_actions_per_window` within `lockout_window_seconds` enters `LOCKOUT`.
 - Reboot actions require post-action verification by `boot_id` change.
+- Phase B sentinel restart verification is freshness-based (`sentinel stats/state`) and is logged separately from reboot verification.
 - `maintenance_mode=true` disables interventions while audit keeps running.
 - repeated intervention for the same incident key is suppressed.
 - lockout lifecycle emits latch events (`entered/still_active/cleared`) into decision/action logs.
@@ -66,8 +67,12 @@ Role split:
 - `observations.jsonl`
 - `decisions.jsonl`
 - `actions.jsonl`
+- `events.jsonl` (lifecycle and transition events only; intentionally sparse)
 - controller state JSON
 - optional notify files: `notify-events.jsonl`, `notify-stats.json`, `notify-queue.json`
+
+Steady-state evidence remains in `observations.jsonl` / `decisions.jsonl` / `actions.jsonl`.
+A quiet `events.jsonl` during stable Phase A soak (for example, 18 hours without new entries) can be normal.
 
 ## Optional Notify Queue (No Recovery Action Required)
 
@@ -104,9 +109,12 @@ You can filter specific scenarios by repeating `--scenario-id`.
 - Architecture: [`docs/architecture.md`](docs/architecture.md)
 - State machine: [`docs/state-machine.md`](docs/state-machine.md)
 - Validation scenarios: [`docs/validation-scenarios.md`](docs/validation-scenarios.md)
+- Event policy: [`docs/event-policy.md`](docs/event-policy.md)
 - Replay guide: [`docs/scenario-replay.md`](docs/scenario-replay.md)
 - Staged rollout: [`docs/rollout-phases.md`](docs/rollout-phases.md)
 - Phase A field checklist: [`docs/phase-a-validation-checklist.md`](docs/phase-a-validation-checklist.md)
+- Phase B field checklist: [`docs/phase-b-validation-checklist.md`](docs/phase-b-validation-checklist.md)
+- Phase B operations log: [`docs/phase-b-operations-log.md`](docs/phase-b-operations-log.md)
 - Engineering rationale: [`docs/engineering-decisions.md`](docs/engineering-decisions.md)
 - Notify queue design: [`docs/notify-queue.md`](docs/notify-queue.md)
 - Public ops note template: [`docs/ops-notes.md`](docs/ops-notes.md)

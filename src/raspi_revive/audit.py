@@ -66,3 +66,19 @@ class AuditLogger:
             "execution": execution,
         }
         append_jsonl(self._paths.actions_log_path, payload)
+
+    def log_event(
+        self,
+        ts: float,
+        event: str,
+        detail: dict,
+        correlation_id: str | None = None,
+    ) -> None:
+        payload = {
+            "ts": ts,
+            "event": event,
+            "detail": detail,
+        }
+        if correlation_id is not None:
+            payload["correlation_id"] = correlation_id
+        append_jsonl(self._paths.events_log_path, payload)

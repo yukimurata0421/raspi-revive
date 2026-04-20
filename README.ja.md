@@ -48,6 +48,7 @@
 - `cooldown_seconds` で連続介入を抑止。
 - `max_actions_per_window` と `lockout_window_seconds` で `LOCKOUT` へ遷移。
 - reboot 系 action は `boot_id` 変化で post-action verification。
+- Phase B の sentinel restart verification は freshness（`sentinel stats/state`）で判定し、reboot verification と分離する。
 - `maintenance_mode=true` で介入を停止（観測/判定/監査は継続）。
 - 同一 incident key への再介入を抑止。
 - lockout のラッチイベント（`entered/still_active/cleared`）を decision/action ログに記録。
@@ -66,8 +67,12 @@
 - `observations.jsonl`
 - `decisions.jsonl`
 - `actions.jsonl`
+- `events.jsonl`（lifecycle / transition 専用、意図的に疎）
 - controller state JSON
 - 任意通知ファイル: `notify-events.jsonl`、`notify-stats.json`、`notify-queue.json`
+
+steady-state の連続根拠は `observations.jsonl` / `decisions.jsonl` / `actions.jsonl` を正本として確認します。
+安定した Phase A soak 中に `events.jsonl` が長時間静かな状態（例: 18時間エントリなし）は正常になりえます。
 
 ## 任意通知キュー（復旧アクション無効のまま利用可能）
 
@@ -104,9 +109,12 @@ python3 -m raspi_revive.scenario_replay_cli \
 - アーキテクチャ: [`docs/architecture.ja.md`](docs/architecture.ja.md)
 - ステートマシン: [`docs/state-machine.ja.md`](docs/state-machine.ja.md)
 - 検証シナリオ: [`docs/validation-scenarios.ja.md`](docs/validation-scenarios.ja.md)
+- Event policy: [`docs/event-policy.ja.md`](docs/event-policy.ja.md)
 - リプレイ手順: [`docs/scenario-replay.ja.md`](docs/scenario-replay.ja.md)
 - 段階投入: [`docs/rollout-phases.ja.md`](docs/rollout-phases.ja.md)
 - Phase A 実機チェック: [`docs/phase-a-validation-checklist.ja.md`](docs/phase-a-validation-checklist.ja.md)
+- Phase B 実機チェック: [`docs/phase-b-validation-checklist.ja.md`](docs/phase-b-validation-checklist.ja.md)
+- Phase B 運用ログ: [`docs/phase-b-operations-log.ja.md`](docs/phase-b-operations-log.ja.md)
 - 設計判断: [`docs/engineering-decisions.ja.md`](docs/engineering-decisions.ja.md)
 - Notify Queue 設計: [`docs/notify-queue.ja.md`](docs/notify-queue.ja.md)
 - 公開向け運用ノート雛形: [`docs/ops-notes.ja.md`](docs/ops-notes.ja.md)

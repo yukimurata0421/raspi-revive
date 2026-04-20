@@ -4,7 +4,7 @@
   "expected_evidence": "gpio stale + host stale + ssh fail",
   "expected_state": "FREEZE_SUSPECTED",
   "expected_action": "GPIO_REBOOT",
-  "forbidden_action": "none",
+  "forbidden_action": "POWER_BUTTON_PULSE",
   "recovery_verification": "boot_id changes later",
   "notes": "requires 3 cycles",
   "threshold_overrides": {
@@ -15,7 +15,11 @@
       "step_id": "SCN-007-STEP-1",
       "expected_state": "FREEZE_SUSPECTED",
       "expected_action": "NO_ACTION",
-      "forbidden_actions": ["REMOTE_REBOOT"],
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1000.0,
         "host_boot_id": "boot-a",
@@ -39,7 +43,11 @@
       "step_id": "SCN-007-STEP-2",
       "expected_state": "FREEZE_SUSPECTED",
       "expected_action": "NO_ACTION",
-      "forbidden_actions": ["REMOTE_REBOOT"],
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1010.0,
         "host_boot_id": "boot-a",
@@ -63,7 +71,9 @@
       "step_id": "SCN-007-STEP-3",
       "expected_state": "FREEZE_SUSPECTED",
       "expected_action": "GPIO_REBOOT",
-      "forbidden_actions": [],
+      "forbidden_actions": [
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1020.0,
         "host_boot_id": "boot-a",

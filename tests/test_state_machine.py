@@ -52,6 +52,7 @@ def build_config(tmp_path: Path) -> ControllerConfig:
             observations_log_path=tmp_path / "observations.jsonl",
             decisions_log_path=tmp_path / "decisions.jsonl",
             actions_log_path=tmp_path / "actions.jsonl",
+            events_log_path=tmp_path / "events.jsonl",
             controller_state_path=tmp_path / "controller-state.json",
         ),
         actions=ActionConfig(
@@ -449,3 +450,53 @@ def test_lockout_latch_events_enter_and_clear(tmp_path: Path, monkeypatch) -> No
     )
     d3 = machine.decide(runtime, classify(healthy), current_boot_id=healthy.host_boot_id)
     assert d3.lockout_latch_event == "lockout_cleared"
+
+
+def test_phase_b_allows_only_restart_sentinel(tmp_path: Path) -> None:
+    config = build_config(tmp_path)
+    config.actions.dry_run = False
+    config.actions.enable_restart_sentinel = True
+    config.actions.enable_remote_reboot = False
+    config.actions.enable_gpio_reboot = False
+    config.actions.enable_power_button_pulse = False
+    machine = StateMachine(config)
+    runtime = ControllerRuntimeState()
+
+    sentinel_only = make_observation(
+        gpio_fresh=True,
+        host_fresh=True,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=False,
+        sentinel_state_fresh=True,
+    )
+    d_sentinel = machine.decide(runtime, classify(sentinel_only), current_boot_id=sentinel_only.host_boot_id)
+    assert d_sentinel.chosen_action == RecoveryAction.RESTART_SENTINEL
+
+    host_degraded = make_observation(
+        gpio_fresh=False,
+        host_fresh=False,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+    )
+    d_host = machine.decide(runtime, classify(host_degraded), current_boot_id=host_degraded.host_boot_id)
+    assert d_host.classified_state.value == "HOST_DEGRADED"
+    assert d_host.chosen_action == RecoveryAction.NO_ACTION
+
+    management_plane = make_observation(
+        gpio_fresh=True,
+        host_fresh=True,
+        ping_ok=True,
+        ssh_ok=False,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+    )
+    d_mgmt = machine.decide(
+        runtime,
+        classify(management_plane),
+        current_boot_id=management_plane.host_boot_id,
+    )
+    assert d_mgmt.classified_state.value == "MANAGEMENT_PLANE_DEGRADED"
+    assert d_mgmt.chosen_action == RecoveryAction.NO_ACTION

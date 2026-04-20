@@ -4,7 +4,7 @@
   "expected_evidence": "gpio fresh, host heartbeat stale, ssh ok",
   "expected_state": "HEALTHY",
   "expected_action": "NO_ACTION",
-  "forbidden_action": "REMOTE_REBOOT/GPIO_REBOOT",
+  "forbidden_action": "RESTART_SENTINEL/REMOTE_REBOOT/GPIO_REBOOT/POWER_BUTTON_PULSE",
   "recovery_verification": "no intervention",
   "notes": "single-signal stale should not reboot",
   "steps": [
@@ -12,7 +12,12 @@
       "step_id": "SCN-002-STEP-1",
       "expected_state": "HEALTHY",
       "expected_action": "NO_ACTION",
-      "forbidden_actions": ["REMOTE_REBOOT", "GPIO_REBOOT"],
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1000.0,
         "host_boot_id": "boot-a",

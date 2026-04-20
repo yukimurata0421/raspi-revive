@@ -1,0 +1,51 @@
+# Phase B Operations Log
+
+This document keeps an operational record for Phase B promotion and live validation.
+
+## Record: 2026-04-20 (JST)
+
+### Scope
+
+- Controller host: `raspi-zero-controller` (operational host)
+- Deployment root: `/opt/raspi-revive`
+- Service: `raspi-revive-controller.service`
+- Active phase after apply: `Phase B`
+
+### Actions Performed
+
+1. Synced the latest code to the controller host.
+2. Applied Phase B controller configuration.
+3. Restarted the controller service.
+4. Checked append-only logs.
+5. Measured heartbeat and network probes.
+6. Executed sentinel-only fault injection.
+7. Verified `RESTART_SENTINEL` execution and verification records.
+
+### Important Fixes
+
+- Confirmed root cause of `ssh_ok=0` was host key verification failure.
+- Added explicit known_hosts options for probe SSH and action SSH commands.
+- Added short polling (up to 8 seconds) for sentinel restart verification to absorb mirror lag.
+
+### Validation Outcome
+
+- Phase B gate preserved:
+  - `dry_run=false`
+  - `enable_restart_sentinel=true`
+  - `enable_remote_reboot=false`
+  - `enable_gpio_reboot=false`
+  - `enable_power_button_pulse=false`
+- Confirmed lifecycle/transition events in `events.jsonl`:
+  - `controller_started`
+  - `phase_b_enabled`
+  - `action_gate_changed`
+  - `sentinel_restart_scheduled`
+  - `sentinel_restart_completed`
+  - `sentinel_restart_verified`
+- Confirmed `RESTART_SENTINEL` fires for sentinel-only evidence and transitions into cooldown.
+- Confirmed no non-target actions (remote/gpio/power) were fired.
+
+### Note
+
+- `events.jsonl` is not a heartbeat stream, so long quiet periods can be normal.
+- Use `observations.jsonl` / `decisions.jsonl` / `actions.jsonl` as the source of truth for steady-state continuity.

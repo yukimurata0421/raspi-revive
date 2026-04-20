@@ -135,6 +135,10 @@ class ControllerRuntimeState:
     previous_host_seq: int | None = None
     last_action_incident_key: str | None = None
     lockout_latch_active: bool = False
+    last_emitted_controller_state: str | None = None
+    last_phase_label: str | None = None
+    last_action_gate_signature: str | None = None
+    last_maintenance_mode: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         pending = None
@@ -157,6 +161,10 @@ class ControllerRuntimeState:
             "previous_host_seq": self.previous_host_seq,
             "last_action_incident_key": self.last_action_incident_key,
             "lockout_latch_active": self.lockout_latch_active,
+            "last_emitted_controller_state": self.last_emitted_controller_state,
+            "last_phase_label": self.last_phase_label,
+            "last_action_gate_signature": self.last_action_gate_signature,
+            "last_maintenance_mode": self.last_maintenance_mode,
         }
 
     @classmethod
@@ -186,4 +194,12 @@ class ControllerRuntimeState:
             ),
             last_action_incident_key=data.get("last_action_incident_key"),
             lockout_latch_active=bool(data.get("lockout_latch_active", False)),
+            last_emitted_controller_state=data.get("last_emitted_controller_state"),
+            last_phase_label=data.get("last_phase_label"),
+            last_action_gate_signature=data.get("last_action_gate_signature"),
+            last_maintenance_mode=(
+                None
+                if data.get("last_maintenance_mode") is None
+                else bool(data.get("last_maintenance_mode"))
+            ),
         )

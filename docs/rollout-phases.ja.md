@@ -39,7 +39,10 @@ journalctl -u raspi-revive-controller.service -n 200 --no-pager
 tail -n 200 /var/log/raspi-revive/observations.jsonl
 tail -n 200 /var/log/raspi-revive/decisions.jsonl
 tail -n 200 /var/log/raspi-revive/actions.jsonl
+tail -n 200 /var/log/raspi-revive/events.jsonl
 ```
+
+`events.jsonl` は transition/lifecycle 専用であり、毎 cycle heartbeat としては扱わない。
 
 ## Phase A（観測のみ）
 
@@ -80,7 +83,9 @@ tail -n 200 /var/log/raspi-revive/actions.jsonl
 
 - sentinel-only 故障が restart で回復
 - ログに remote/gpio action が出ない
+- ログに `POWER_BUTTON_PULSE` action が出ない
 - restart 後の cooldown/incident dedupe が効く
+- restart verification が sentinel freshness として記録される（`sentinel_restart_verified` または `sentinel_restart_failed`）
 
 ロールバック条件:
 

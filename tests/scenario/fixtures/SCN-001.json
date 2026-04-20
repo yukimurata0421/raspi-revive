@@ -4,7 +4,7 @@
   "expected_evidence": "gpio fresh, host heartbeat fresh, ssh ok, sentinel stale",
   "expected_state": "SENTINEL_ONLY_FAILURE",
   "expected_action": "RESTART_SENTINEL",
-  "forbidden_action": "REMOTE_REBOOT/GPIO_REBOOT",
+  "forbidden_action": "REMOTE_REBOOT/GPIO_REBOOT/POWER_BUTTON_PULSE",
   "recovery_verification": "sentinel freshness recovers",
   "notes": "in-band first",
   "threshold_overrides": {
@@ -15,7 +15,11 @@
       "step_id": "SCN-001-STEP-1",
       "expected_state": "SENTINEL_ONLY_FAILURE",
       "expected_action": "RESTART_SENTINEL",
-      "forbidden_actions": ["REMOTE_REBOOT", "GPIO_REBOOT"],
+      "forbidden_actions": [
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1000.0,
         "host_boot_id": "boot-a",

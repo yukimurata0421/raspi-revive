@@ -61,7 +61,7 @@ class NotifyState:
             last_failure_ts=payload.get("last_failure_ts"),
         )
 
-    def to_json(self) -> dict:
+    def to_json(self, queue_size: int) -> dict:
         return {
             "candidate_incident_key": self.candidate_incident_key,
             "candidate_state": self.candidate_state,
@@ -70,6 +70,7 @@ class NotifyState:
             "last_notified_ts": self.last_notified_ts,
             "last_delivery_ts": self.last_delivery_ts,
             "last_failure_ts": self.last_failure_ts,
+            "queue_size": queue_size,
         }
 
 
@@ -85,17 +86,8 @@ class NotifyDispatcher:
     def __post_init__(self) -> None:
         self._state = NotifyState.from_json(read_json(self.config.notify.stats_path))
         payload = read_json(self.config.notify.queue_path)
-        self._queue = (
-            payload["items"]
-            if isinstance(payload, dict) and isinstance(payload.get("items"), list)
-            else []
-        )
+        self._queue: list[dict] = payload["items"] if isinstance(payload, dict) and isinstance(payload.get("items"), list) else []
         self._last_stats_flush_ts = None
-        if self.config.notify.enabled:
-            if not self.config.notify.queue_path.exists():
-                self._queue_dirty = True
-            if not self.config.notify.stats_path.exists():
-                self._stats_dirty = True
 
     def handle_cycle(self, decision: Decision, obs: Observation) -> None:
         now_ts = obs.ts
@@ -331,6 +323,8 @@ class NotifyDispatcher:
 
     def _flush_persistence(self, now_ts: float) -> None:
         if self._queue_dirty:
+            self._stats_dirty = True
+        if self._queue_dirty:
             write_json_atomic(self.config.notify.queue_path, {"items": self._queue})
             self._queue_dirty = False
 
@@ -345,6 +339,6 @@ class NotifyDispatcher:
                 should_flush_stats = True
 
         if should_flush_stats:
-            write_json_atomic(self.config.notify.stats_path, self._state.to_json())
+            write_json_atomic(self.config.notify.stats_path, self._state.to_json(queue_size=len(self._queue)))
             self._last_stats_flush_ts = now_ts
             self._stats_dirty = False

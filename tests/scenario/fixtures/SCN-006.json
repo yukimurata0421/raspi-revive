@@ -4,7 +4,7 @@
   "expected_evidence": "multi evidence degradation",
   "expected_state": "HOST_DEGRADED",
   "expected_action": "REMOTE_REBOOT",
-  "forbidden_action": "GPIO_REBOOT",
+  "forbidden_action": "GPIO_REBOOT/POWER_BUTTON_PULSE",
   "recovery_verification": "post action verification starts",
   "notes": "requires consecutive cycles",
   "threshold_overrides": {
@@ -15,7 +15,11 @@
       "step_id": "SCN-006-STEP-1",
       "expected_state": "HOST_DEGRADED",
       "expected_action": "NO_ACTION",
-      "forbidden_actions": ["GPIO_REBOOT"],
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1000.0,
         "host_boot_id": "boot-a",
@@ -39,7 +43,10 @@
       "step_id": "SCN-006-STEP-2",
       "expected_state": "HOST_DEGRADED",
       "expected_action": "REMOTE_REBOOT",
-      "forbidden_actions": ["GPIO_REBOOT"],
+      "forbidden_actions": [
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
       "observation": {
         "ts": 1010.0,
         "host_boot_id": "boot-a",

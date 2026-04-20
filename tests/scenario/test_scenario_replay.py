@@ -55,6 +55,7 @@ def build_config(tmp_path: Path) -> ControllerConfig:
             observations_log_path=tmp_path / "observations.jsonl",
             decisions_log_path=tmp_path / "decisions.jsonl",
             actions_log_path=tmp_path / "actions.jsonl",
+            events_log_path=tmp_path / "events.jsonl",
             controller_state_path=tmp_path / "controller-state.json",
         ),
         actions=ActionConfig(
@@ -133,7 +134,12 @@ def test_scenario_network_only_issue_forbids_reboot(tmp_path: Path) -> None:
             ),
             expected_state="NETWORK_ONLY_ISSUE",
             expected_action=RecoveryAction.NO_ACTION,
-            forbidden_actions=(RecoveryAction.REMOTE_REBOOT, RecoveryAction.GPIO_REBOOT),
+            forbidden_actions=(
+                RecoveryAction.RESTART_SENTINEL,
+                RecoveryAction.REMOTE_REBOOT,
+                RecoveryAction.GPIO_REBOOT,
+                RecoveryAction.POWER_BUTTON_PULSE,
+            ),
         )
     ]
 
@@ -156,7 +162,11 @@ def test_scenario_sentinel_only_goes_to_restart_only(tmp_path: Path) -> None:
             ),
             expected_state="SENTINEL_ONLY_FAILURE",
             expected_action=RecoveryAction.RESTART_SENTINEL,
-            forbidden_actions=(RecoveryAction.REMOTE_REBOOT, RecoveryAction.GPIO_REBOOT),
+            forbidden_actions=(
+                RecoveryAction.REMOTE_REBOOT,
+                RecoveryAction.GPIO_REBOOT,
+                RecoveryAction.POWER_BUTTON_PULSE,
+            ),
         )
     ]
 
@@ -179,7 +189,11 @@ def test_scenario_freeze_requires_sustained_cycles_before_gpio_reboot(tmp_path: 
             ),
             expected_state="FREEZE_SUSPECTED",
             expected_action=RecoveryAction.NO_ACTION,
-            forbidden_actions=(RecoveryAction.REMOTE_REBOOT,),
+            forbidden_actions=(
+                RecoveryAction.RESTART_SENTINEL,
+                RecoveryAction.REMOTE_REBOOT,
+                RecoveryAction.POWER_BUTTON_PULSE,
+            ),
         ),
         ScenarioStep(
             step_id="SCN-007-STEP-2",
@@ -193,7 +207,11 @@ def test_scenario_freeze_requires_sustained_cycles_before_gpio_reboot(tmp_path: 
             ),
             expected_state="FREEZE_SUSPECTED",
             expected_action=RecoveryAction.NO_ACTION,
-            forbidden_actions=(RecoveryAction.REMOTE_REBOOT,),
+            forbidden_actions=(
+                RecoveryAction.RESTART_SENTINEL,
+                RecoveryAction.REMOTE_REBOOT,
+                RecoveryAction.POWER_BUTTON_PULSE,
+            ),
         ),
         ScenarioStep(
             step_id="SCN-007-STEP-3",

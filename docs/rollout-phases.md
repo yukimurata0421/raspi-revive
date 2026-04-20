@@ -39,7 +39,10 @@ Review logs:
 tail -n 200 /var/log/raspi-revive/observations.jsonl
 tail -n 200 /var/log/raspi-revive/decisions.jsonl
 tail -n 200 /var/log/raspi-revive/actions.jsonl
+tail -n 200 /var/log/raspi-revive/events.jsonl
 ```
+
+`events.jsonl` is transition/lifecycle only and intentionally sparse. Do not treat it as per-cycle heartbeat.
 
 ## Phase A (Observe Only)
 
@@ -80,7 +83,9 @@ Exit criteria:
 
 - sentinel-only faults recover by restart
 - no remote reboot or gpio action in logs
+- no `POWER_BUTTON_PULSE` action in logs
 - cooldown and incident dedupe work after restart actions
+- restart verification is recorded using sentinel freshness checks (`sentinel_restart_verified` or `sentinel_restart_failed`)
 
 Rollback trigger:
 

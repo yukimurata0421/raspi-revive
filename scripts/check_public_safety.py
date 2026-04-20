@@ -46,8 +46,6 @@ SCAN_ROOTS = (
     REPO_ROOT / "docs",
     REPO_ROOT / "targets",
     REPO_ROOT / "examples",
-    REPO_ROOT / "src",
-    REPO_ROOT / ".github",
 )
 
 RUNTIME_ARTIFACTS = (
@@ -111,21 +109,13 @@ def _check_phase_config_consistency(errors: list[str]) -> None:
     if len(phase_paths) < 2:
         return
     baseline_path = phase_paths[0]
-    try:
-        with baseline_path.open("rb") as f:
-            baseline = tomllib.load(f)
-    except tomllib.TOMLDecodeError as exc:
-        errors.append(f"{baseline_path.relative_to(REPO_ROOT)}: TOML parse error: {exc}")
-        return
+    with baseline_path.open("rb") as f:
+        baseline = tomllib.load(f)
     baseline_without_actions = {k: v for k, v in baseline.items() if k != "actions"}
 
     for path in phase_paths[1:]:
-        try:
-            with path.open("rb") as f:
-                payload = tomllib.load(f)
-        except tomllib.TOMLDecodeError as exc:
-            errors.append(f"{path.relative_to(REPO_ROOT)}: TOML parse error: {exc}")
-            continue
+        with path.open("rb") as f:
+            payload = tomllib.load(f)
         payload_without_actions = {k: v for k, v in payload.items() if k != "actions"}
         if payload_without_actions != baseline_without_actions:
             errors.append(

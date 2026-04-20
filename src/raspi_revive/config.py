@@ -56,6 +56,7 @@ class PathConfig:
     observations_log_path: Path
     decisions_log_path: Path
     actions_log_path: Path
+    events_log_path: Path
     controller_state_path: Path
 
 
@@ -139,6 +140,9 @@ def load_controller_config(path: str | Path) -> ControllerConfig:
     default_queue_path = _as_path(str(_as_path(paths["controller_state_path"]).with_name("notify-queue.json")))
     default_stats_path = _as_path(str(_as_path(paths["controller_state_path"]).with_name("notify-stats.json")))
     default_events_path = _as_path(str(_as_path(paths["actions_log_path"]).with_name("notify-events.jsonl")))
+    default_controller_events_path = _as_path(
+        str(_as_path(paths["actions_log_path"]).with_name("events.jsonl"))
+    )
 
     return ControllerConfig(
         probe=ProbeConfig(
@@ -181,6 +185,7 @@ def load_controller_config(path: str | Path) -> ControllerConfig:
             observations_log_path=_as_path(paths["observations_log_path"]),
             decisions_log_path=_as_path(paths["decisions_log_path"]),
             actions_log_path=_as_path(paths["actions_log_path"]),
+            events_log_path=_as_path(str(paths.get("events_log_path", default_controller_events_path))),
             controller_state_path=_as_path(paths["controller_state_path"]),
         ),
         actions=ActionConfig(

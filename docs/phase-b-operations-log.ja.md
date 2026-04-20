@@ -1,0 +1,51 @@
+# Phase B Operations Log
+
+この文書は、Phase B 適用と実地検証の記録を残すための運用ログです。
+
+## 2026-04-20 (JST) 適用記録
+
+### 対象
+
+- Controller host: `raspi-zero-controller`（運用ホスト）
+- Deployment root: `/opt/raspi-revive`
+- Service: `raspi-revive-controller.service`
+- Active phase after apply: `Phase B`
+
+### 実施内容
+
+1. 最新コードを controller 側へ同期
+2. `controller.toml` を Phase B 構成で適用
+3. controller service を再起動
+4. append-only ログを確認
+5. heartbeat / network probe の実測
+6. sentinel-only fault injection を実施
+7. `RESTART_SENTINEL` 実行と verification 記録を確認
+
+### 重要な修正
+
+- `ssh_ok=0` の主因が host key verification 失敗であることを確認
+- controller 側 `ssh_options` と action command に known_hosts を明示
+- sentinel restart verification で mirror 遅延を吸収するため、短時間ポーリング（最大 8 秒）を追加
+
+### 検証結果
+
+- Phase B gate: 維持
+  - `dry_run=false`
+  - `enable_restart_sentinel=true`
+  - `enable_remote_reboot=false`
+  - `enable_gpio_reboot=false`
+  - `enable_power_button_pulse=false`
+- `events.jsonl` に lifecycle / transition 記録を確認
+  - `controller_started`
+  - `phase_b_enabled`
+  - `action_gate_changed`
+  - `sentinel_restart_scheduled`
+  - `sentinel_restart_completed`
+  - `sentinel_restart_verified`
+- sentinel-only 条件で `RESTART_SENTINEL` が発火し、cooldown に遷移することを確認
+- non-target action（remote/gpio/power）が発火していないことを確認
+
+### 補足
+
+- `events.jsonl` は heartbeat ストリームではないため、長時間エントリが少ない状態は正常になりうる
+- steady-state の連続証跡は `observations.jsonl` / `decisions.jsonl` / `actions.jsonl` を正本として確認する

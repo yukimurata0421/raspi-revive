@@ -15,3 +15,11 @@ def load_runtime_state(path: Path) -> ControllerRuntimeState:
 
 def save_runtime_state(path: Path, state: ControllerRuntimeState) -> None:
     write_json_atomic(path, state.to_dict())
+
+
+def save_runtime_state_if_changed(path: Path, previous: dict, state: ControllerRuntimeState) -> bool:
+    current = state.to_dict()
+    if previous == current and path.exists():
+        return False
+    write_json_atomic(path, current)
+    return True
