@@ -15,9 +15,9 @@
 
 ## 現在のスコープと未完成事項
 
-- 現在の投入段階は `Phase A`。
-- 運用方針は observation-first。
-- この phase では intervention lines は有効化/接続しない。
+- 公開デフォルトの投入プロファイルは `Phase A`（observation-first）のまま。
+- 実機検証としては `Phase B` まで昇格確認済み（`docs/phase-b-operations-log.ja.md` を参照）。
+- `Phase B` は `dry_run=false` かつ `RESTART_SENTINEL` のみ有効で、reboot 系は無効のまま。
 - より強い介入は、低リスク phase の証拠が揃ってから段階的に有効化する。
 
 ## 設計品質宣言
@@ -34,14 +34,14 @@
 
 ## Action 条件（MVP）
 
-| 判定状態 | 必要証拠（要約） | Action |
-| --- | --- | --- |
-| `HEALTHY` | stale/degraded/freeze のゲート未該当 | `NO_ACTION` |
-| `MANAGEMENT_PLANE_DEGRADED` | gpio fresh + host heartbeat fresh + ping ok + ssh fail | `NO_ACTION` |
-| `NETWORK_ONLY_ISSUE` | ping/ssh 問題 + out-of-band gpio fresh | `NO_ACTION` |
-| `SENTINEL_ONLY_FAILURE` | gpio fresh + host heartbeat fresh + ssh ok + sentinel stale | `RESTART_SENTINEL` |
-| `HOST_DEGRADED` | (gpio stale + host stale + ssh ok) または (host stale + sentinel stale + ssh ok) | `REMOTE_REBOOT` |
-| `FREEZE_SUSPECTED` | gpio stale + host stale + ssh fail + 連続サイクル成立 | `GPIO_REBOOT` |
+| 判定状態 | 必要証拠（要約） | 候補 Action | Phase ゲート条件 |
+| --- | --- | --- | --- |
+| `HEALTHY` | stale/degraded/freeze のゲート未該当 | `NO_ACTION` | 常時許可 |
+| `MANAGEMENT_PLANE_DEGRADED` | gpio fresh + host heartbeat fresh + ping ok + ssh fail | `NO_ACTION` | 常時許可 |
+| `NETWORK_ONLY_ISSUE` | ping/ssh 問題 + out-of-band gpio fresh | `NO_ACTION` | 常時許可 |
+| `SENTINEL_ONLY_FAILURE` | gpio fresh + host heartbeat fresh + ssh ok + sentinel stale | `RESTART_SENTINEL` | Phase B 以降で有効 |
+| `HOST_DEGRADED` | (gpio stale + host stale + ssh ok) または (host stale + sentinel stale + ssh ok) | `REMOTE_REBOOT` | Phase B では無効（Phase C 以降） |
+| `FREEZE_SUSPECTED` | gpio stale + host stale + ssh fail + 連続サイクル成立 | `GPIO_REBOOT` | Phase B では無効（Phase C 以降） |
 
 ## Safety Gate
 

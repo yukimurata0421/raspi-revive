@@ -15,10 +15,10 @@ Role split:
 
 ## Current Scope and Gaps
 
-- Current rollout position is `Phase A`.
-- Operation is observation-first.
-- Intervention lines are not enabled/connected in this phase.
-- Stronger interventions are staged and must be enabled only after evidence from lower-risk phases.
+- Public default rollout profile remains `Phase A` (observation-first).
+- Field validation has been promoted through `Phase B` on real hardware (see `docs/phase-b-operations-log.md`).
+- `Phase B` enables only `RESTART_SENTINEL` with `dry_run=false` while reboot lines stay disabled.
+- Stronger interventions remain staged and must be enabled only after evidence from lower-risk phases.
 
 ## Design Quality Declaration
 
@@ -34,14 +34,14 @@ Role split:
 
 ## Action Conditions (MVP)
 
-| Classified state | Required evidence (summary) | Action |
-| --- | --- | --- |
-| `HEALTHY` | no stale/degraded/freeze gate triggered | `NO_ACTION` |
-| `MANAGEMENT_PLANE_DEGRADED` | gpio fresh + host heartbeat fresh + ping ok + ssh fail | `NO_ACTION` |
-| `NETWORK_ONLY_ISSUE` | ping/ssh issue + out-of-band gpio fresh | `NO_ACTION` |
-| `SENTINEL_ONLY_FAILURE` | gpio fresh + host heartbeat fresh + ssh ok + sentinel stale | `RESTART_SENTINEL` |
-| `HOST_DEGRADED` | (gpio stale + host stale + ssh ok) or (host stale + sentinel stale + ssh ok) | `REMOTE_REBOOT` |
-| `FREEZE_SUSPECTED` | gpio stale + host stale + ssh fail + sustained cycles | `GPIO_REBOOT` |
+| Classified state | Required evidence (summary) | Candidate action | Phase gate requirement |
+| --- | --- | --- | --- |
+| `HEALTHY` | no stale/degraded/freeze gate triggered | `NO_ACTION` | always allowed |
+| `MANAGEMENT_PLANE_DEGRADED` | gpio fresh + host heartbeat fresh + ping ok + ssh fail | `NO_ACTION` | always allowed |
+| `NETWORK_ONLY_ISSUE` | ping/ssh issue + out-of-band gpio fresh | `NO_ACTION` | always allowed |
+| `SENTINEL_ONLY_FAILURE` | gpio fresh + host heartbeat fresh + ssh ok + sentinel stale | `RESTART_SENTINEL` | enabled in Phase B+ |
+| `HOST_DEGRADED` | (gpio stale + host stale + ssh ok) or (host stale + sentinel stale + ssh ok) | `REMOTE_REBOOT` | disabled in Phase B (Phase C+) |
+| `FREEZE_SUSPECTED` | gpio stale + host stale + ssh fail + sustained cycles | `GPIO_REBOOT` | disabled in Phase B (Phase C+) |
 
 ## Safety Gates
 
