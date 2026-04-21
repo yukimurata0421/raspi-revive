@@ -81,3 +81,27 @@
 - Phase A is active for observation/stability learning.
 - Keep intervention lines disconnected and action gates closed.
 - Tighten stale thresholds gradually only after evidence.
+
+## 2026-04-21: Phase A-C staged enablement and monitoring responsibility split
+
+### Context
+
+- After live operation in Phase A/B, Phase C was promoted only after confirming continuous controller runtime and safe gate behavior.
+- In parallel, recurrence prevention was required for the previously observed `raspi-revive-controller.service: inactive (dead)` condition.
+
+### Decisions
+
+1. Keep strict staged enablement.
+   - Phase A: observation only (no intervention)
+   - Phase B: open only `enable_restart_sentinel=true`
+   - Phase C: additionally open `enable_remote_reboot=true`
+   - Keep `enable_gpio_reboot` and `enable_power_button_pulse` closed
+2. Mitigate `inactive (dead)` by clarifying monitoring responsibility, not by adding controller-side complexity.
+   - Shift supervision to the `raspi-sentinel` lite variant, favoring lightweight always-on monitoring and a simpler recovery path.
+   - Keep the controller focused on evidence-based state judgment and staged action gates.
+
+### Outcome
+
+- In Phase B, sentinel-restart effectiveness was validated without opening unsafe actions.
+- At Phase C promotion time, no immediate unsafe action firing was observed.
+- For `inactive (dead)`, operational recurrence suppression is now established through the `raspi-sentinel` lite-side responsibility split.

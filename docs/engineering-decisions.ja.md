@@ -80,3 +80,27 @@
 - Phase A で観測安定性を優先して継続運用。
 - 介入線は未接続、action gate は閉じたまま維持。
 - 閾値の引き締めは証拠ベースで段階的に行う。
+
+## 2026-04-21: Phase A-C 段階的有効化と監視責務の再整理
+
+### 背景
+
+- Phase A/B 実運用を経て、controller の連続稼働と action gate の安全性を確認したうえで Phase C へ移行した。
+- 併行して、過去に観測された `raspi-revive-controller.service: inactive (dead)` 事象の再発抑制が必要だった。
+
+### 意思決定
+
+1. 段階的有効化を維持する。
+   - Phase A: 観測専用（介入なし）
+   - Phase B: `enable_restart_sentinel=true` のみ開放
+   - Phase C: `enable_remote_reboot=true` を追加開放
+   - `enable_gpio_reboot` / `enable_power_button_pulse` は引き続き閉じる
+2. `inactive (dead)` 対策は controller 側の複雑化ではなく監視責務の整理で行う。
+   - 監視系は `raspi-sentinel` lite 構成へ寄せ、軽量な常時監視と単純な復旧経路を優先する。
+   - controller は証拠ベース判定と段階的 action gate の責務に集中させる。
+
+### 結果
+
+- フェーズBでは危険側アクションを開かずに sentinel restart 経路の有効性を確認できた。
+- Phase C 移行時点でも unsafe action の即時発火は確認されていない。
+- `inactive (dead)` 事象は、`raspi-sentinel` lite 側への責務寄せにより再発抑制の運用線を確立した。
