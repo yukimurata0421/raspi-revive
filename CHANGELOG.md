@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## 2026-04-21
+
+### Phase C rollout documentation alignment
+
+- Updated public `README.md` / `README.ja.md` top summary to match live phased rollout status through `Phase C`.
+- Clarified that `Phase C` enables `RESTART_SENTINEL` and `REMOTE_REBOOT`, while `GPIO_REBOOT` and `POWER_BUTTON_PULSE` remain disabled.
+- Added Phase A-C decision rationale to engineering decision docs:
+  - `docs/engineering-decisions.md`
+  - `docs/engineering-decisions.ja.md`
+
 ## 2026-04-20
 
 ### Phase A/B rollout and logging policy

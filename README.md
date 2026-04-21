@@ -15,9 +15,9 @@ Role split:
 
 ## Current Scope and Gaps
 
-- Public default rollout profile remains `Phase A` (observation-first).
-- Field validation has been promoted through `Phase B` on real hardware (see `docs/phase-b-operations-log.md`).
-- `Phase B` enables only `RESTART_SENTINEL` with `dry_run=false` while reboot lines stay disabled.
+- Public baseline profile remains staged from `Phase A` (observation-first) upward.
+- Field operation has progressed through `Phase C` on real hardware after Phase A/B evidence.
+- `Phase C` enables `RESTART_SENTINEL` and `REMOTE_REBOOT`; `GPIO_REBOOT` and `POWER_BUTTON_PULSE` stay disabled.
 - Stronger interventions remain staged and must be enabled only after evidence from lower-risk phases.
 
 ## Design Quality Declaration

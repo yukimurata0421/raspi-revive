@@ -15,9 +15,9 @@
 
 ## 現在のスコープと未完成事項
 
-- 公開デフォルトの投入プロファイルは `Phase A`（observation-first）のまま。
-- 実機検証としては `Phase B` まで昇格確認済み（`docs/phase-b-operations-log.ja.md` を参照）。
-- `Phase B` は `dry_run=false` かつ `RESTART_SENTINEL` のみ有効で、reboot 系は無効のまま。
+- 公開ベースラインの投入は `Phase A`（observation-first）からの段階適用を維持する。
+- 実運用は Phase A/B の証拠を経て、実機で `Phase C` まで進行している。
+- `Phase C` では `RESTART_SENTINEL` と `REMOTE_REBOOT` を有効化し、`GPIO_REBOOT` と `POWER_BUTTON_PULSE` は無効のまま。
 - より強い介入は、低リスク phase の証拠が揃ってから段階的に有効化する。
 
 ## 設計品質宣言
