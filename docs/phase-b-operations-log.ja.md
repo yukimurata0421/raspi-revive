@@ -49,3 +49,21 @@
 
 - `events.jsonl` は heartbeat ストリームではないため、長時間エントリが少ない状態は正常になりうる
 - steady-state の連続証跡は `observations.jsonl` / `decisions.jsonl` / `actions.jsonl` を正本として確認する
+
+## 2026-04-21 (JST) フェーズB総括
+
+### 稼働サマリ
+
+- `raspi-revive-controller.service` は約 9 時間連続で `active (running)` を維持
+- 直近 6 時間では `NO_ACTION` が大半で、危険側アクション（remote/gpio/power）は未実行
+- `SENTINEL_ONLY_FAILURE` は断続的に観測されたが、短周期で `HEALTHY` に復帰
+
+### `inactive (dead)` 事象への対策
+
+- 過去に観測された `raspi-revive-controller.service: inactive (dead)` は、監視系を `raspi-sentinel` の lite バージョン構成へ寄せることで再発を抑制
+- 具体的には、軽量監視の常時稼働と復旧経路の単純化により、controller 側の停止見逃しを減らす運用に整理
+
+### 判断
+
+- フェーズBとしての主要目的（sentinel restart 経路の安全な有効化と危険側アクション非発火）は達成
+- 一方で sentinel freshness 揺れは継続するため、フェーズC移行後も `events.jsonl` と `actions.jsonl` の継続監視を前提とする

@@ -49,3 +49,21 @@ This document keeps an operational record for Phase B promotion and live validat
 
 - `events.jsonl` is not a heartbeat stream, so long quiet periods can be normal.
 - Use `observations.jsonl` / `decisions.jsonl` / `actions.jsonl` as the source of truth for steady-state continuity.
+
+## Summary: 2026-04-21 (JST)
+
+### Runtime Summary
+
+- `raspi-revive-controller.service` stayed `active (running)` for about 9 continuous hours.
+- Over the last 6 hours, `NO_ACTION` dominated and no high-impact actions (remote/gpio/power) were executed.
+- `SENTINEL_ONLY_FAILURE` still appeared intermittently, but it returned to `HEALTHY` in short cycles.
+
+### Mitigation for `inactive (dead)`
+
+- The previously observed `raspi-revive-controller.service: inactive (dead)` condition was mitigated by shifting the monitoring side to the `raspi-sentinel` lite variant.
+- In operational terms, this aligned the system to a lighter always-on supervision path and a simpler recovery flow, reducing missed controller-stop situations.
+
+### Assessment
+
+- Phase B objectives were met: safe sentinel-restart enablement and no unsafe action firing.
+- Sentinel freshness jitter remains, so continued monitoring of `events.jsonl` and `actions.jsonl` is still required after Phase C promotion.
