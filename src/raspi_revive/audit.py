@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from .config import PathConfig
-from .io import append_jsonl
+from .config import LogConfig, PathConfig
+from .io import append_jsonl_with_rotation
 from .models import Decision, Observation
 
 
 class AuditLogger:
-    def __init__(self, paths: PathConfig) -> None:
+    def __init__(self, paths: PathConfig, logs: LogConfig) -> None:
         self._paths = paths
+        self._logs = logs
 
     def log_observation(
         self,
@@ -24,7 +25,12 @@ class AuditLogger:
             "correlation_id": correlation_id,
             "observation": asdict(observation),
         }
-        append_jsonl(self._paths.observations_log_path, payload)
+        append_jsonl_with_rotation(
+            self._paths.observations_log_path,
+            payload,
+            max_bytes=self._logs.max_log_size_bytes,
+            rotation_count=self._logs.rotation_count,
+        )
 
     def log_decision(self, ts: float, decision: Decision) -> None:
         payload = {
@@ -40,7 +46,12 @@ class AuditLogger:
             "maintenance_mode_active": decision.maintenance_mode_active,
             "lockout_latch_event": decision.lockout_latch_event,
         }
-        append_jsonl(self._paths.decisions_log_path, payload)
+        append_jsonl_with_rotation(
+            self._paths.decisions_log_path,
+            payload,
+            max_bytes=self._logs.max_log_size_bytes,
+            rotation_count=self._logs.rotation_count,
+        )
 
     def log_action(
         self,
@@ -65,7 +76,12 @@ class AuditLogger:
             "lockout_context": lockout_context,
             "execution": execution,
         }
-        append_jsonl(self._paths.actions_log_path, payload)
+        append_jsonl_with_rotation(
+            self._paths.actions_log_path,
+            payload,
+            max_bytes=self._logs.max_log_size_bytes,
+            rotation_count=self._logs.rotation_count,
+        )
 
     def log_event(
         self,
@@ -81,4 +97,9 @@ class AuditLogger:
         }
         if correlation_id is not None:
             payload["correlation_id"] = correlation_id
-        append_jsonl(self._paths.events_log_path, payload)
+        append_jsonl_with_rotation(
+            self._paths.events_log_path,
+            payload,
+            max_bytes=self._logs.max_log_size_bytes,
+            rotation_count=self._logs.rotation_count,
+        )

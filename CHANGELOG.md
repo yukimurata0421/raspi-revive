@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 ## 2026-04-23
 
+### Config flexibility and runtime safety extensions
+
+- Added config-driven phase gate:
+  - `actions.enabled_phases` supports explicit phase allowlists (for example `["A","B","C"]`).
+  - Legacy action booleans remain supported and are still enforced.
+- Added extensible notify provider interface:
+  - `[[notify.providers]]` with `kind` (`ssh_append`, `discord_webhook`) and per-provider settings.
+  - Legacy notify fields remain backward-compatible.
+- Added runtime JSONL rotation:
+  - New `[logs]` section (`max_log_size_mb`, `rotation_count`), default `10MB` and `3` rotations.
+  - Applied to controller audit logs and notify event logs.
+- Added regression coverage for provider parsing and JSONL rotation behavior.
+
 ### False-trigger hardening for Phase C remote reboot
 
 - Reworked classifier and state machine to separate telemetry failure from host degradation:

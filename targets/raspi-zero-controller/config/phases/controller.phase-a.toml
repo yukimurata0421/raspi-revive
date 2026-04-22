@@ -21,6 +21,7 @@ cooldown_seconds = 120.0
 lockout_window_seconds = 1800.0
 max_actions_per_window = 3
 post_action_verification_wait_seconds = 180.0
+post_boot_reconciliation_wait_seconds = 180.0
 
 [paths]
 host_heartbeat_path = "/var/lib/raspi-revive-agent/host-heartbeat.json"
@@ -39,6 +40,7 @@ enable_restart_sentinel = false
 enable_remote_reboot = false
 enable_gpio_reboot = false
 enable_power_button_pulse = false
+enabled_phases = ["A"]
 restart_sentinel_cmd = ["ssh", "<agent-user>@<agent-host>", "sudo", "systemctl", "restart", "raspi-sentinel.service"]
 remote_reboot_cmd = ["ssh", "<agent-user>@<agent-host>", "sudo", "reboot"]
 gpio_reboot_cmd = ["/usr/local/bin/raspi-revive-gpio-reset", "--profile", "pi5-main"]
@@ -69,3 +71,7 @@ stats_flush_interval_seconds = 60.0
 
 max_queue_size = 256
 max_event_age_seconds = 86400.0
+
+[logs]
+max_log_size_mb = 10.0
+rotation_count = 3

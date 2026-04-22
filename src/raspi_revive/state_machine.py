@@ -321,6 +321,9 @@ class StateMachine:
         return None
 
     def _action_enabled(self, action: RecoveryAction) -> bool:
+        required_phase = self._required_phase(action)
+        if required_phase is not None and required_phase not in self.config.actions.enabled_phases:
+            return False
         if action == RecoveryAction.RESTART_SENTINEL:
             return self.config.actions.enable_restart_sentinel
         if action == RecoveryAction.REMOTE_REBOOT:
@@ -330,3 +333,12 @@ class StateMachine:
         if action == RecoveryAction.POWER_BUTTON_PULSE:
             return self.config.actions.enable_power_button_pulse
         return True
+
+    def _required_phase(self, action: RecoveryAction) -> str | None:
+        if action == RecoveryAction.RESTART_SENTINEL:
+            return "B"
+        if action == RecoveryAction.REMOTE_REBOOT:
+            return "C"
+        if action in (RecoveryAction.GPIO_REBOOT, RecoveryAction.POWER_BUTTON_PULSE):
+            return "D"
+        return None

@@ -62,6 +62,7 @@ def build_config(tmp_path: Path) -> ControllerConfig:
             enable_remote_reboot=True,
             enable_gpio_reboot=True,
             enable_power_button_pulse=True,
+            enabled_phases=frozenset({"A", "B", "C", "D"}),
             restart_sentinel_cmd=["true"],
             remote_reboot_cmd=["true"],
             gpio_reboot_cmd=["true"],
@@ -366,6 +367,27 @@ def test_host_degraded_requires_multi_evidence(tmp_path: Path) -> None:
 def test_action_disabled_by_rollout_policy(tmp_path: Path) -> None:
     config = build_config(tmp_path)
     config.actions.enable_remote_reboot = False
+    machine = StateMachine(config)
+    runtime = ControllerRuntimeState()
+    runtime.last_telemetry_healthy_boot_id = "boot-a"
+
+    obs = make_observation(
+        gpio_fresh=False,
+        host_fresh=False,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+    )
+    decision = machine.decide(runtime, classify(obs), current_boot_id=obs.host_boot_id)
+    assert decision.classified_state.value == "HOST_DEGRADED"
+    assert decision.chosen_action == RecoveryAction.NO_ACTION
+    assert "rollout phase policy" in decision.reason
+
+
+def test_action_disabled_when_required_phase_not_enabled(tmp_path: Path) -> None:
+    config = build_config(tmp_path)
+    config.actions.enabled_phases = frozenset({"A", "B"})
     machine = StateMachine(config)
     runtime = ControllerRuntimeState()
     runtime.last_telemetry_healthy_boot_id = "boot-a"
