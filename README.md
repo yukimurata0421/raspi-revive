@@ -115,6 +115,7 @@ You can filter specific scenarios by repeating `--scenario-id`.
 - Phase A field checklist: [`docs/phase-a-validation-checklist.md`](docs/phase-a-validation-checklist.md)
 - Phase B field checklist: [`docs/phase-b-validation-checklist.md`](docs/phase-b-validation-checklist.md)
 - Phase B operations log: [`docs/phase-b-operations-log.md`](docs/phase-b-operations-log.md)
+- Phase C operations log: [`docs/phase-c-operations-log.md`](docs/phase-c-operations-log.md)
 - Engineering rationale: [`docs/engineering-decisions.md`](docs/engineering-decisions.md)
 - Notify queue design: [`docs/notify-queue.md`](docs/notify-queue.md)
 - Public ops note template: [`docs/ops-notes.md`](docs/ops-notes.md)
