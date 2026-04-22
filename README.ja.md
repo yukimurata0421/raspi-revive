@@ -115,6 +115,7 @@ python3 -m raspi_revive.scenario_replay_cli \
 - Phase A 実機チェック: [`docs/phase-a-validation-checklist.ja.md`](docs/phase-a-validation-checklist.ja.md)
 - Phase B 実機チェック: [`docs/phase-b-validation-checklist.ja.md`](docs/phase-b-validation-checklist.ja.md)
 - Phase B 運用ログ: [`docs/phase-b-operations-log.ja.md`](docs/phase-b-operations-log.ja.md)
+- Phase C 運用ログ: [`docs/phase-c-operations-log.ja.md`](docs/phase-c-operations-log.ja.md)
 - 設計判断: [`docs/engineering-decisions.ja.md`](docs/engineering-decisions.ja.md)
 - Notify Queue 設計: [`docs/notify-queue.ja.md`](docs/notify-queue.ja.md)
 - 公開向け運用ノート雛形: [`docs/ops-notes.ja.md`](docs/ops-notes.ja.md)
