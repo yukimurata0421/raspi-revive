@@ -21,6 +21,7 @@ cooldown_seconds = 120.0
 lockout_window_seconds = 1800.0
 max_actions_per_window = 3
 post_action_verification_wait_seconds = 180.0
+post_boot_reconciliation_wait_seconds = 180.0
 
 [paths]
 host_heartbeat_path = "/var/lib/raspi-revive-agent/host-heartbeat.json"

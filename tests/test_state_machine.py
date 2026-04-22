@@ -43,6 +43,7 @@ def build_config(tmp_path: Path) -> ControllerConfig:
             lockout_window_seconds=600.0,
             max_actions_per_window=2,
             post_action_verification_wait_seconds=120.0,
+            post_boot_reconciliation_wait_seconds=120.0,
         ),
         paths=PathConfig(
             host_heartbeat_path=tmp_path / "host-heartbeat.json",
@@ -238,8 +239,20 @@ def test_reboot_verification_uses_boot_id_change(tmp_path: Path, monkeypatch) ->
     machine = StateMachine(config)
     runtime = ControllerRuntimeState()
 
-    times = iter([1000.0, 1000.0, 1001.0, 1002.0])
+    times = iter([999.0, 1000.0, 1000.0, 1001.0, 1002.0])
     monkeypatch.setattr("raspi_revive.state_machine.time.time", lambda: next(times))
+
+    baseline = make_observation(
+        gpio_fresh=True,
+        host_fresh=True,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+        host_boot_id="boot-a",
+    )
+    baseline_decision = machine.decide(runtime, classify(baseline), current_boot_id=baseline.host_boot_id)
+    assert baseline_decision.classified_state.value == "HEALTHY"
 
     obs = make_observation(
         gpio_fresh=False,
@@ -355,6 +368,7 @@ def test_action_disabled_by_rollout_policy(tmp_path: Path) -> None:
     config.actions.enable_remote_reboot = False
     machine = StateMachine(config)
     runtime = ControllerRuntimeState()
+    runtime.last_telemetry_healthy_boot_id = "boot-a"
 
     obs = make_observation(
         gpio_fresh=False,
@@ -368,6 +382,97 @@ def test_action_disabled_by_rollout_policy(tmp_path: Path) -> None:
     assert decision.classified_state.value == "HOST_DEGRADED"
     assert decision.chosen_action == RecoveryAction.NO_ACTION
     assert "rollout phase policy" in decision.reason
+
+
+def test_telemetry_pipeline_failure_does_not_trigger_remote_reboot(tmp_path: Path) -> None:
+    config = build_config(tmp_path)
+    machine = StateMachine(config)
+    runtime = ControllerRuntimeState()
+
+    obs = make_observation(
+        gpio_fresh=True,
+        host_fresh=False,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=False,
+        sentinel_state_fresh=True,
+    )
+    decision = machine.decide(runtime, classify(obs), current_boot_id=obs.host_boot_id)
+    assert decision.classified_state.value == "TELEMETRY_PIPELINE_FAILURE"
+    assert decision.chosen_action == RecoveryAction.NO_ACTION
+
+
+def test_post_boot_reconciliation_holds_after_reboot_until_telemetry_recovers(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    config = build_config(tmp_path)
+    config.guard.cooldown_seconds = 0.0
+    machine = StateMachine(config)
+    runtime = ControllerRuntimeState()
+
+    times = iter([999.0, 1000.0, 1000.0, 1001.0, 1002.0, 1003.0])
+    monkeypatch.setattr("raspi_revive.state_machine.time.time", lambda: next(times))
+
+    baseline = make_observation(
+        gpio_fresh=True,
+        host_fresh=True,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+        host_boot_id="boot-a",
+    )
+    machine.decide(runtime, classify(baseline), current_boot_id=baseline.host_boot_id)
+
+    degraded = make_observation(
+        gpio_fresh=False,
+        host_fresh=False,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+        host_boot_id="boot-a",
+    )
+    reboot = machine.decide(runtime, classify(degraded), current_boot_id=degraded.host_boot_id)
+    assert reboot.chosen_action == RecoveryAction.REMOTE_REBOOT
+    machine.register_action(
+        runtime,
+        reboot.chosen_action,
+        reboot.correlation_id,
+        reboot.incident_key,
+        degraded.host_boot_id,
+    )
+
+    changed_boot_not_recovered = make_observation(
+        gpio_fresh=True,
+        host_fresh=False,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=False,
+        sentinel_state_fresh=True,
+        host_boot_id="boot-b",
+    )
+    hold = machine.decide(
+        runtime,
+        classify(changed_boot_not_recovered),
+        current_boot_id=changed_boot_not_recovered.host_boot_id,
+    )
+    assert hold.classified_state.value == "POST_BOOT_RECONCILIATION"
+    assert hold.chosen_action == RecoveryAction.NO_ACTION
+
+    recovered = make_observation(
+        gpio_fresh=True,
+        host_fresh=True,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+        host_boot_id="boot-b",
+    )
+    done = machine.decide(runtime, classify(recovered), current_boot_id=recovered.host_boot_id)
+    assert done.classified_state.value == "HEALTHY"
+    assert runtime.post_boot_reconciliation is None
 
 
 def test_maintenance_mode_blocks_intervention(tmp_path: Path) -> None:

@@ -104,3 +104,57 @@
 - フェーズBでは危険側アクションを開かずに sentinel restart 経路の有効性を確認できた。
 - Phase C 移行時点でも unsafe action の即時発火は確認されていない。
 - `inactive (dead)` 事象は、`raspi-sentinel` lite 側への責務寄せにより再発抑制の運用線を確立した。
+
+## 2026-04-23: Phase C 誤発火事象への対応と reboot 方針のハードニング
+
+### 背景
+
+- Phase C 運用中の `2026-04-23 06:55` と `06:58 JST` に remote reboot ループ事象を確認した。
+- 事象時点の証跡では:
+  - `actions.jsonl` に `REMOTE_REBOOT` 実行記録が残っている。
+  - SSH 到達性は維持されていた。
+  - 旧判定式では telemetry stale（`host heartbeat` + `sentinel`）が `HOST_DEGRADED` に入り得た。
+- これは「強い介入は強い因果証拠で行う」という設計意図と整合しなかった。
+
+### 意思決定
+
+1. telemetry 故障と host 劣化を分離する。
+   - `TELEMETRY_PIPELINE_FAILURE` を追加し、telemetry stale 単独は `HOST_DEGRADED` から外す。
+   - ねらい: exporter/facts 系故障で host reboot を引かない。
+2. `REMOTE_REBOOT` に因果証明を要求する。
+   - `HOST_DEGRADED` の remote reboot は次を必須化:
+     - target-plane 独立証拠（`gpio stale + host heartbeat stale + ssh ok`）
+     - 同一 boot 内で telemetry baseline 正常を一度確認済み
+   - ねらい: 「観測欠落」をそのまま reboot 理由にしない。
+3. reboot 後の再収束待ちを状態機械へ明示化する。
+   - `POST_BOOT_RECONCILIATION` / `RECOVERY_PARTIAL` を追加。
+   - `post_boot_reconciliation_wait_seconds` を追加。
+   - ねらい: boot 変化直後に同種の強い介入を再発火させない。
+4. 有効化は運用者判断の明示ゲートにする。
+   - 初動封じ込めは `enable_remote_reboot=false`。
+   - ハードニング配備と回帰確認後に、運用判断で再有効化した。
+
+### 根拠と検証
+
+- RCA と運用証跡は次に記録:
+  - `docs/phase-c-operations-log.md`
+  - `2026-04-23 06:55/06:58 JST` の incident 記録
+- ハードニング後の回帰確認:
+  - `pytest -q` 通過
+  - `ruff check` 通過
+- 再有効化時の運用証跡:
+  - `phase_changed: PHASE_B -> PHASE_C`
+  - `action_gate_changed` で `enable_remote_reboot=1`
+
+## Phase A-C の記録充足性
+
+設計判断の記録は、以下を明示的に含む状態に更新した。
+
+1. Phase A: GPIO 観測専用立ち上げ、配線制約、観測安定化。
+2. Phase B: sentinel-only 介入境界と安全な昇格根拠。
+3. Phase C:
+   - 初期昇格と実稼働確認、
+   - remote reboot 実行検証、
+   - 誤発火事象対応、
+   - 判定/介入方針のハードニング、
+   - 条件付きの再有効化判断。

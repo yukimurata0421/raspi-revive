@@ -17,7 +17,9 @@ Role split:
 
 - Public baseline profile remains staged from `Phase A` (observation-first) upward.
 - Field operation has progressed through `Phase C` on real hardware after Phase A/B evidence.
-- `Phase C` enables `RESTART_SENTINEL` and `REMOTE_REBOOT`; `GPIO_REBOOT` and `POWER_BUTTON_PULSE` stay disabled.
+- After a `REMOTE_REBOOT` validation run on `2026-04-23`, a false-trigger reboot loop was observed at `06:55` and `06:58 JST`.
+- Current field containment keeps `enable_remote_reboot=false`; `REMOTE_REBOOT` is re-enabled only when explicit safety criteria are met.
+- The intended Phase C policy is: keep `RESTART_SENTINEL` as primary intervention and allow `REMOTE_REBOOT` only with independent host-degradation evidence.
 - Stronger interventions remain staged and must be enabled only after evidence from lower-risk phases.
 
 ## Design Quality Declaration
@@ -40,14 +42,16 @@ Role split:
 | `MANAGEMENT_PLANE_DEGRADED` | gpio fresh + host heartbeat fresh + ping ok + ssh fail | `NO_ACTION` | always allowed |
 | `NETWORK_ONLY_ISSUE` | ping/ssh issue + out-of-band gpio fresh | `NO_ACTION` | always allowed |
 | `SENTINEL_ONLY_FAILURE` | gpio fresh + host heartbeat fresh + ssh ok + sentinel stale | `RESTART_SENTINEL` | enabled in Phase B+ |
-| `HOST_DEGRADED` | (gpio stale + host stale + ssh ok) or (host stale + sentinel stale + ssh ok) | `REMOTE_REBOOT` | disabled in Phase B (Phase C+) |
-| `FREEZE_SUSPECTED` | gpio stale + host stale + ssh fail + sustained cycles | `GPIO_REBOOT` | disabled in Phase B (Phase C+) |
+| `TELEMETRY_PIPELINE_FAILURE` | host heartbeat stale + sentinel stale + gpio fresh + ssh ok | `NO_ACTION` | always allowed |
+| `HOST_DEGRADED` | gpio stale + host stale + ssh ok, and telemetry was previously healthy in same boot | `REMOTE_REBOOT` | disabled in Phase B (Phase C+) |
+| `FREEZE_SUSPECTED` | gpio stale + host stale + ssh fail + sustained cycles | `GPIO_REBOOT` | disabled through Phase C (Phase D+) |
 
 ## Safety Gates
 
 - `cooldown_seconds` suppresses immediate repeated actions.
 - `max_actions_per_window` within `lockout_window_seconds` enters `LOCKOUT`.
 - Reboot actions require post-action verification by `boot_id` change.
+- After reboot verification, the controller enters post-boot reconciliation and suppresses hard actions until telemetry recovers or the reconciliation window expires.
 - Phase B sentinel restart verification is freshness-based (`sentinel stats/state`) and is logged separately from reboot verification.
 - `maintenance_mode=true` disables interventions while audit keeps running.
 - repeated intervention for the same incident key is suppressed.

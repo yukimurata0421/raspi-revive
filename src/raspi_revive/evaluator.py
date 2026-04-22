@@ -52,15 +52,20 @@ def classify(obs: Observation) -> Classification:
             reason="sentinel facts stale while host/gpio/ssh indicate OS alive",
         )
 
-    host_degraded_rebootable = (
-        ((not ev.gpio_fresh) and (not ev.host_heartbeat_fresh))
-        or ((not ev.host_heartbeat_fresh) and (not ev.sentinel_fresh))
-    )
+    telemetry_pipeline_failure = (not ev.host_heartbeat_fresh) and (not ev.sentinel_fresh)
+    if telemetry_pipeline_failure and ev.gpio_fresh and ev.ssh_ok:
+        return Classification(
+            state=ControllerState.TELEMETRY_PIPELINE_FAILURE,
+            evidence=ev,
+            reason="telemetry stale while gpio and ssh indicate host still reachable",
+        )
+
+    host_degraded_rebootable = (not ev.gpio_fresh) and (not ev.host_heartbeat_fresh)
     if host_degraded_rebootable and ev.ssh_ok:
         return Classification(
             state=ControllerState.HOST_DEGRADED,
             evidence=ev,
-            reason="multi-evidence degradation with ssh reachable",
+            reason="out-of-band and host-heartbeat evidence indicate host degradation with ssh reachable",
         )
 
     if (not ev.gpio_fresh) and (not ev.ssh_ok) and (not ev.host_heartbeat_fresh):
