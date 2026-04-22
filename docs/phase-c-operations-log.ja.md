@@ -49,8 +49,8 @@
 ### 対象
 
 - 証跡ファイル:
-  - `/home/pi5-guard/phase-c-remote-reboot-test-20260423T062804+0900.log`
-  - `/home/pi5-guard/phase-c-remote-reboot-test-20260423T062804+0900.summary`
+  - `<controller-home>/phase-c-remote-reboot-test-20260423T062804+0900.log`
+  - `<controller-home>/phase-c-remote-reboot-test-20260423T062804+0900.summary`
   - `/var/log/raspi-revive/actions.jsonl`
   - `/var/log/raspi-revive/events.jsonl`
 - 実行ウィンドウ: `2026-04-23 06:28:04` から `06:29:09 JST`

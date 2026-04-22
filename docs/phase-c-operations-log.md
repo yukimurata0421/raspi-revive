@@ -49,8 +49,8 @@ This document keeps an operational record for Phase C runtime verification and i
 ### Scope
 
 - Evidence files:
-  - `/home/pi5-guard/phase-c-remote-reboot-test-20260423T062804+0900.log`
-  - `/home/pi5-guard/phase-c-remote-reboot-test-20260423T062804+0900.summary`
+  - `<controller-home>/phase-c-remote-reboot-test-20260423T062804+0900.log`
+  - `<controller-home>/phase-c-remote-reboot-test-20260423T062804+0900.summary`
   - `/var/log/raspi-revive/actions.jsonl`
   - `/var/log/raspi-revive/events.jsonl`
 - Test runtime window: `2026-04-23 06:28:04` to `06:29:09 JST`
