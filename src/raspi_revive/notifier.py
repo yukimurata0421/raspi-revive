@@ -5,13 +5,14 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import shlex
-import subprocess
 import ssl
+import subprocess
+from typing import Callable
 import urllib.error
 import urllib.request
 
 from .config import ControllerConfig
-from .io import append_jsonl, read_json, write_json_atomic
+from .io import append_jsonl_with_rotation, read_json, write_json_atomic
 from .models import Decision, Observation
 
 
@@ -74,10 +75,18 @@ class NotifyState:
 
 
 @dataclass(slots=True)
+class _NotifyProvider:
+    name: str
+    kind: str
+    deliver: Callable[[dict], tuple[bool, str | None]]
+
+
+@dataclass(slots=True)
 class NotifyDispatcher:
     config: ControllerConfig
     _state: NotifyState = field(init=False)
     _queue: list[dict] = field(init=False, default_factory=list)
+    _providers: list[_NotifyProvider] = field(init=False, default_factory=list)
     _queue_dirty: bool = field(init=False, default=False)
     _stats_dirty: bool = field(init=False, default=False)
     _last_stats_flush_ts: float | None = field(init=False, default=None)
@@ -90,6 +99,7 @@ class NotifyDispatcher:
             if isinstance(payload, dict) and isinstance(payload.get("items"), list)
             else []
         )
+        self._providers = self._build_providers()
         self._last_stats_flush_ts = None
         if self.config.notify.enabled:
             if not self.config.notify.queue_path.exists():
@@ -102,11 +112,11 @@ class NotifyDispatcher:
         if not self.config.notify.enabled:
             return
 
-        self._track_candidate(decision, obs, now_ts)
+        self._track_candidate(decision, now_ts)
         self._drain_queue(now_ts)
         self._flush_persistence(now_ts)
 
-    def _track_candidate(self, decision: Decision, obs: Observation, now_ts: float) -> None:
+    def _track_candidate(self, decision: Decision, now_ts: float) -> None:
         state = decision.classified_state.value
         is_candidate = state in self.config.notify.candidate_states
         incident_changed = self._state.candidate_incident_key != decision.incident_key
@@ -141,7 +151,7 @@ class NotifyDispatcher:
             duration >= self.config.notify.candidate_hold_seconds
             and self._state.last_notified_incident_key != decision.incident_key
         ):
-            item = self._build_queue_item(decision, obs, now_ts, duration)
+            item = self._build_queue_item(decision, now_ts, duration)
             self._trim_queue_for_new_item(now_ts)
             self._queue.append(item)
             self._queue_dirty = True
@@ -150,7 +160,7 @@ class NotifyDispatcher:
             self._stats_dirty = True
             self._append_event("enqueued", now_ts, {"event_id": item["event_id"], "incident_key": decision.incident_key})
 
-    def _build_queue_item(self, decision: Decision, obs: Observation, now_ts: float, duration: float) -> dict:
+    def _build_queue_item(self, decision: Decision, now_ts: float, duration: float) -> dict:
         payload = {
             "event_id": decision.correlation_id,
             "ts": now_ts,
@@ -159,8 +169,6 @@ class NotifyDispatcher:
             "classified_state": decision.classified_state.value,
             "reason": decision.reason,
             "candidate_duration_sec": round(duration, 1),
-            "host_boot_id": obs.host_boot_id,
-            "host_seq": obs.host_seq,
             "evidence": {
                 "gpio_fresh": decision.evidence.gpio_fresh,
                 "host_heartbeat_fresh": decision.evidence.host_heartbeat_fresh,
@@ -177,8 +185,7 @@ class NotifyDispatcher:
             "next_retry_ts": now_ts,
             "first_failure_ts": None,
             "attempt_count": 0,
-            "remote_delivered": False,
-            "discord_delivered": False,
+            "provider_status": {provider.name: False for provider in self._providers},
             "last_error": None,
         }
 
@@ -190,27 +197,27 @@ class NotifyDispatcher:
                 remaining.append(item)
                 continue
 
-            remote_ok = bool(item.get("remote_delivered", False))
-            discord_ok = bool(item.get("discord_delivered", False))
+            status = self._provider_status_from_item(item)
             last_error = None
 
-            if self.config.notify.remote_append_enabled and not remote_ok:
-                remote_ok, last_error = self._append_remote_jsonl(item["payload"])
-                if remote_ok:
-                    item["remote_delivered"] = True
-                    self._append_event("remote_append_ok", now_ts, {"event_id": item["event_id"]})
-
-            if self.config.notify.discord_webhook_url and not discord_ok:
-                discord_ok, discord_error = self._send_discord(item["payload"])
-                if discord_ok:
-                    item["discord_delivered"] = True
-                    self._append_event("discord_ok", now_ts, {"event_id": item["event_id"]})
+            for provider in self._providers:
+                if status.get(provider.name, False):
+                    continue
+                ok, provider_error = provider.deliver(item["payload"])
+                if ok:
+                    status[provider.name] = True
+                    self._append_event(
+                        "provider_ok",
+                        now_ts,
+                        {"event_id": item["event_id"], "provider": provider.name, "kind": provider.kind},
+                    )
                 elif last_error is None:
-                    last_error = discord_error
+                    last_error = provider_error
 
-            if (not self.config.notify.remote_append_enabled or item.get("remote_delivered")) and (
-                not self.config.notify.discord_webhook_url or item.get("discord_delivered")
-            ):
+            item["provider_status"] = status
+            self._write_legacy_provider_flags(item, status)
+
+            if (not status) or all(status.values()):
                 self._state.last_delivery_ts = now_ts
                 self._stats_dirty = True
                 self._queue_dirty = True
@@ -272,9 +279,103 @@ class NotifyDispatcher:
                 {"event_id": dropped.get("event_id"), "max_queue_size": self.config.notify.max_queue_size},
             )
 
-    def _append_remote_jsonl(self, payload: dict) -> tuple[bool, str | None]:
+    def _build_providers(self) -> list[_NotifyProvider]:
+        providers: list[_NotifyProvider] = []
+        provider_configs = list(self.config.notify_providers)
+        if not provider_configs:
+            if self.config.notify.remote_append_enabled:
+                provider_configs.append(
+                    type(
+                        "_LegacyProviderCfg",
+                        (),
+                        {
+                            "name": "ssh_append_default",
+                            "kind": "ssh_append",
+                            "enabled": True,
+                            "remote_jsonl_path": self.config.notify.remote_jsonl_path,
+                            "webhook_url": "",
+                        },
+                    )()
+                )
+            if self.config.notify.discord_webhook_url:
+                provider_configs.append(
+                    type(
+                        "_LegacyProviderCfg",
+                        (),
+                        {
+                            "name": "discord_webhook_default",
+                            "kind": "discord_webhook",
+                            "enabled": True,
+                            "remote_jsonl_path": "",
+                            "webhook_url": self.config.notify.discord_webhook_url,
+                        },
+                    )()
+                )
+
+        for provider_cfg in provider_configs:
+            if not provider_cfg.enabled:
+                continue
+            if provider_cfg.kind == "ssh_append":
+                providers.append(
+                    _NotifyProvider(
+                        name=provider_cfg.name,
+                        kind=provider_cfg.kind,
+                        deliver=lambda payload, remote_path=provider_cfg.remote_jsonl_path: self._append_remote_jsonl_to_path(payload, remote_path),
+                    )
+                )
+            elif provider_cfg.kind == "discord_webhook":
+                if provider_cfg.webhook_url == self.config.notify.discord_webhook_url:
+                    def deliver_fn(payload: dict) -> tuple[bool, str | None]:
+                        return self._send_discord(payload)
+                else:
+                    webhook_url = provider_cfg.webhook_url
+
+                    def deliver_fn(payload: dict) -> tuple[bool, str | None]:
+                        return self._send_discord_to_url(payload, webhook_url)
+                providers.append(
+                    _NotifyProvider(
+                        name=provider_cfg.name,
+                        kind=provider_cfg.kind,
+                        deliver=deliver_fn,
+                    )
+                )
+        return providers
+
+    def _provider_status_from_item(self, item: dict) -> dict[str, bool]:
+        status = {provider.name: False for provider in self._providers}
+        existing = item.get("provider_status")
+        if isinstance(existing, dict):
+            for name, value in existing.items():
+                if name in status:
+                    status[name] = bool(value)
+
+        # Backward compatibility for queue items persisted by old schema.
+        if bool(item.get("remote_delivered", False)):
+            for provider in self._providers:
+                if provider.kind == "ssh_append":
+                    status[provider.name] = True
+                    break
+        if bool(item.get("discord_delivered", False)):
+            for provider in self._providers:
+                if provider.kind == "discord_webhook":
+                    status[provider.name] = True
+                    break
+        return status
+
+    def _write_legacy_provider_flags(self, item: dict, status: dict[str, bool]) -> None:
+        item["remote_delivered"] = any(
+            status.get(provider.name, False)
+            for provider in self._providers
+            if provider.kind == "ssh_append"
+        )
+        item["discord_delivered"] = any(
+            status.get(provider.name, False)
+            for provider in self._providers
+            if provider.kind == "discord_webhook"
+        )
+
+    def _append_remote_jsonl_to_path(self, payload: dict, remote_path: str) -> tuple[bool, str | None]:
         json_line = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
-        remote_path = self.config.notify.remote_jsonl_path
         remote_dir = str(Path(remote_path).parent)
         cmd = [
             "ssh",
@@ -293,7 +394,12 @@ class NotifyDispatcher:
             return False, (proc.stderr.strip() or proc.stdout.strip() or f"ssh_exit={proc.returncode}")
         return True, None
 
-    def _send_discord(self, payload: dict) -> tuple[bool, str | None]:
+    def _append_remote_jsonl(self, payload: dict) -> tuple[bool, str | None]:
+        return self._append_remote_jsonl_to_path(payload, self.config.notify.remote_jsonl_path)
+
+    def _send_discord_to_url(self, payload: dict, webhook_url: str) -> tuple[bool, str | None]:
+        if not webhook_url:
+            return False, "discord_url_not_configured"
         body = {
             "content": (
                 "[raspi-revive] reboot candidate sustained for 5+ minutes\\n"
@@ -302,7 +408,7 @@ class NotifyDispatcher:
             )
         }
         req = urllib.request.Request(
-            self.config.notify.discord_webhook_url,
+            webhook_url,
             data=json.dumps(body).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -318,8 +424,11 @@ class NotifyDispatcher:
         except TimeoutError as exc:
             return False, f"discord_timeout: {exc}"
 
+    def _send_discord(self, payload: dict) -> tuple[bool, str | None]:
+        return self._send_discord_to_url(payload, self.config.notify.discord_webhook_url)
+
     def _append_event(self, event: str, ts: float, detail: dict) -> None:
-        append_jsonl(
+        append_jsonl_with_rotation(
             self.config.notify.events_path,
             {
                 "ts": ts,
@@ -327,6 +436,8 @@ class NotifyDispatcher:
                 "event": event,
                 "detail": detail,
             },
+            max_bytes=self.config.logs.max_log_size_bytes,
+            rotation_count=self.config.logs.rotation_count,
         )
 
     def _flush_persistence(self, now_ts: float) -> None:

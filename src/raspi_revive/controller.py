@@ -21,7 +21,7 @@ class ReviveController:
         self._collector = ObservationCollector(config)
         self._state_machine = StateMachine(config)
         self._executor = ActionExecutor(config.actions)
-        self._audit = AuditLogger(config.paths)
+        self._audit = AuditLogger(config.paths, config.logs)
         self._notifier = NotifyDispatcher(config)
         self._runtime_state = load_runtime_state(config.paths.controller_state_path)
         # Force one baseline write after startup, then track actual persisted value.
@@ -255,51 +255,35 @@ class ReviveController:
             )
             self._runtime_state.last_maintenance_mode = enabled
 
-    def _action_gate_snapshot(self) -> dict[str, bool]:
+    def _action_gate_snapshot(self) -> dict[str, bool | str]:
         return {
             "dry_run": self._config.actions.dry_run,
             "enable_restart_sentinel": self._config.actions.enable_restart_sentinel,
             "enable_remote_reboot": self._config.actions.enable_remote_reboot,
             "enable_gpio_reboot": self._config.actions.enable_gpio_reboot,
             "enable_power_button_pulse": self._config.actions.enable_power_button_pulse,
+            "enabled_phases": ",".join(sorted(self._config.actions.enabled_phases)),
         }
 
-    def _action_gate_signature(self, gates: dict[str, bool]) -> str:
-        return "|".join(f"{key}={int(value)}" for key, value in sorted(gates.items()))
+    def _action_gate_signature(self, gates: dict[str, bool | str]) -> str:
+        parts: list[str] = []
+        for key, value in sorted(gates.items()):
+            if isinstance(value, bool):
+                parts.append(f"{key}={int(value)}")
+            else:
+                parts.append(f"{key}={value}")
+        return "|".join(parts)
 
     def _phase_label(self) -> str:
         actions = self._config.actions
-        if (
-            actions.dry_run
-            and not actions.enable_restart_sentinel
-            and not actions.enable_remote_reboot
-            and not actions.enable_gpio_reboot
-            and not actions.enable_power_button_pulse
-        ):
+        phases = actions.enabled_phases
+        if actions.dry_run and phases == {"A"}:
             return "PHASE_A"
-        if (
-            (not actions.dry_run)
-            and actions.enable_restart_sentinel
-            and (not actions.enable_remote_reboot)
-            and (not actions.enable_gpio_reboot)
-            and (not actions.enable_power_button_pulse)
-        ):
+        if (not actions.dry_run) and phases == {"A", "B"}:
             return "PHASE_B"
-        if (
-            (not actions.dry_run)
-            and actions.enable_restart_sentinel
-            and actions.enable_remote_reboot
-            and (not actions.enable_gpio_reboot)
-            and (not actions.enable_power_button_pulse)
-        ):
+        if (not actions.dry_run) and phases == {"A", "B", "C"}:
             return "PHASE_C"
-        if (
-            (not actions.dry_run)
-            and actions.enable_restart_sentinel
-            and actions.enable_remote_reboot
-            and actions.enable_gpio_reboot
-            and actions.enable_power_button_pulse
-        ):
+        if (not actions.dry_run) and phases == {"A", "B", "C", "D"}:
             return "PHASE_D"
         return "CUSTOM"
 

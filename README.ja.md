@@ -54,6 +54,7 @@
 
 ## Safety Gate
 
+- `actions.enabled_phases = ["A","B","C", ...]` で phase gate を設定ファイル側から明示できる。
 - `cooldown_seconds` で連続介入を抑止。
 - `max_actions_per_window` と `lockout_window_seconds` で `LOCKOUT` へ遷移。
 - reboot 系 action は `boot_id` 変化で post-action verification。
@@ -91,6 +92,7 @@ steady-state の連続根拠は `observations.jsonl` / `decisions.jsonl` / `acti
 - queue イベントは次を試行します。
   - SSH 経由で Pi 5 側 JSONL へ append（`notify.remote_jsonl_path`）
   - Discord webhook 送信
+- `[[notify.providers]]`（例: `ssh_append`, `discord_webhook`）で通知先を拡張でき、旧設定項目とも後方互換を維持します。
 - 送達リトライ方針:
   - 失敗継続 5 分未満は 60 秒間隔でリトライ
   - 5 分連続失敗後は指数バックオフ
@@ -136,6 +138,7 @@ python3 -m raspi_revive.scenario_replay_cli \
 - Controller が agent export の fact ファイルを設定パスから読めること。
 - GPIO の電気的安全層はこのリポジトリの外で担保すること。
 - 配備先で `pinctrl`（既定 GPIO backend）または libgpiod tools、および `ping`, `ssh` が使えること。
+- runtime JSONL は `[logs]` 設定（既定: `max_log_size_mb=10`, `rotation_count=3`）でローテーションされること。
 
 ## TODO（将来拡張）
 
