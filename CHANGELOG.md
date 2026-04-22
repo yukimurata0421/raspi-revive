@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented in this file.
 
+## 2026-04-23
+
+### False-trigger hardening for Phase C remote reboot
+
+- Reworked classifier and state machine to separate telemetry failure from host degradation:
+  - Added `TELEMETRY_PIPELINE_FAILURE` state.
+  - Restricted `HOST_DEGRADED` to target-plane evidence (`gpio stale + host heartbeat stale + ssh ok`).
+- Added reboot lineage and reconciliation controls:
+  - Added `POST_BOOT_RECONCILIATION` and `RECOVERY_PARTIAL` states.
+  - Added `post_boot_reconciliation_wait_seconds` guard setting.
+  - Suppressed hard actions after reboot until telemetry recovers or reconciliation timeout.
+- Added stronger `REMOTE_REBOOT` gate:
+  - Requires telemetry baseline in the same boot (`host heartbeat + sentinel + ssh` healthy at least once).
+- Updated scenario fixtures and tests for new decision boundaries and reconciliation flow.
+- Updated docs (`README`, state-machine docs, Phase C operations log, validation scenarios) to match the new behavior.
+
+### Phase C remote reboot verification documentation update
+
+- Updated `docs/phase-c-operations-log.md` / `docs/phase-c-operations-log.ja.md`:
+  - Removed context wording tied to conversation transcripts.
+  - Added a concrete execution record for the `2026-04-23` Phase C `REMOTE_REBOOT` test.
+  - Recorded intervention evidence (`REMOTE_REBOOT`, `exit=0`) and post-action verification (`boot_id` change).
+- Clarified Phase gating text in `README.md` / `README.ja.md`:
+  - `GPIO_REBOOT` under `FREEZE_SUSPECTED` is documented as disabled through Phase C and enabled from Phase D.
+
 ## 2026-04-21
 
 ### Phase C rollout documentation alignment

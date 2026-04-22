@@ -45,6 +45,7 @@ class GuardConfig:
     lockout_window_seconds: float
     max_actions_per_window: int
     post_action_verification_wait_seconds: float
+    post_boot_reconciliation_wait_seconds: float
 
 
 @dataclass(slots=True)
@@ -175,6 +176,12 @@ def load_controller_config(path: str | Path) -> ControllerConfig:
             max_actions_per_window=int(guard["max_actions_per_window"]),
             post_action_verification_wait_seconds=float(
                 guard["post_action_verification_wait_seconds"]
+            ),
+            post_boot_reconciliation_wait_seconds=float(
+                guard.get(
+                    "post_boot_reconciliation_wait_seconds",
+                    guard["post_action_verification_wait_seconds"],
+                )
             ),
         ),
         paths=PathConfig(

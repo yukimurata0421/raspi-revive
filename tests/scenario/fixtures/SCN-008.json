@@ -18,6 +18,35 @@
   "steps": [
     {
       "step_id": "SCN-008-STEP-1",
+      "expected_state": "HEALTHY",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
+      "observation": {
+        "ts": 995.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 95.0,
+        "host_wall_time": "2026-04-19T00:00:00+00:00",
+        "host_heartbeat_age_sec": 1.0,
+        "host_heartbeat_fresh": true,
+        "host_heartbeat_progressing": true,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 1.0,
+        "sentinel_stats_fresh": true,
+        "sentinel_state_age_sec": 1.0,
+        "sentinel_state_fresh": true,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    },
+    {
+      "step_id": "SCN-008-STEP-2",
       "expected_state": "SENTINEL_ONLY_FAILURE",
       "expected_action": "RESTART_SENTINEL",
       "forbidden_actions": [
@@ -44,7 +73,7 @@
       }
     },
     {
-      "step_id": "SCN-008-STEP-2",
+      "step_id": "SCN-008-STEP-3",
       "expected_state": "HOST_DEGRADED",
       "expected_action": "REMOTE_REBOOT",
       "forbidden_actions": [
@@ -60,8 +89,8 @@
         "host_heartbeat_age_sec": 120.0,
         "host_heartbeat_fresh": false,
         "host_heartbeat_progressing": false,
-        "gpio_heartbeat_age_sec": 1.0,
-        "gpio_heartbeat_fresh": true,
+        "gpio_heartbeat_age_sec": 120.0,
+        "gpio_heartbeat_fresh": false,
         "sentinel_stats_age_sec": 120.0,
         "sentinel_stats_fresh": false,
         "sentinel_state_age_sec": 1.0,
@@ -71,7 +100,7 @@
       }
     },
     {
-      "step_id": "SCN-008-STEP-3",
+      "step_id": "SCN-008-STEP-4",
       "expected_state": "LOCKOUT",
       "expected_action": "NO_ACTION",
       "forbidden_actions": [
