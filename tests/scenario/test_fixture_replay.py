@@ -5,6 +5,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 from raspi_revive.config import (
     ActionConfig,
     ControllerConfig,
@@ -18,6 +20,7 @@ from raspi_revive.config import (
 )
 from raspi_revive.scenario_harness import (
     assert_scenario_expectations,
+    load_scenario_definition,
     load_scenario_definitions_from_dir,
     replay_definition,
 )
@@ -186,3 +189,125 @@ maintenance_mode = false
 
     assert proc.returncode == 0, proc.stdout + "\n" + proc.stderr
     assert "All" in proc.stdout
+
+
+def test_counterexample_telemetry_only_failure_does_not_remote_reboot(tmp_path: Path) -> None:
+    config = build_config(tmp_path)
+    scenario_path = tmp_path / "SCN-COUNTER-TELEMETRY-ONLY.json"
+    scenario_path.write_text(
+        """
+{
+  "scenario_id": "SCN-COUNTER-TELEMETRY-ONLY",
+  "injected_failure": "telemetry-only failure",
+  "expected_evidence": "gpio fresh + ssh ok + host heartbeat stale + sentinel stale",
+  "expected_state": "TELEMETRY_PIPELINE_FAILURE",
+  "expected_action": "NO_ACTION",
+  "forbidden_action": "REMOTE_REBOOT/GPIO_REBOOT/POWER_BUTTON_PULSE",
+  "recovery_verification": "no reboot should be selected",
+  "notes": "counterexample for false reboot prevention",
+  "steps": [
+    {
+      "step_id": "SCN-COUNTER-STEP-1",
+      "expected_state": "TELEMETRY_PIPELINE_FAILURE",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": ["REMOTE_REBOOT", "GPIO_REBOOT", "POWER_BUTTON_PULSE"],
+      "observation": {
+        "ts": 1000.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:00+00:00",
+        "host_heartbeat_age_sec": 120.0,
+        "host_heartbeat_fresh": false,
+        "host_heartbeat_progressing": false,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 120.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 120.0,
+        "sentinel_state_fresh": false,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    },
+    {
+      "step_id": "SCN-COUNTER-STEP-2",
+      "expected_state": "TELEMETRY_PIPELINE_FAILURE",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": ["REMOTE_REBOOT", "GPIO_REBOOT", "POWER_BUTTON_PULSE"],
+      "observation": {
+        "ts": 1010.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:10+00:00",
+        "host_heartbeat_age_sec": 130.0,
+        "host_heartbeat_fresh": false,
+        "host_heartbeat_progressing": false,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 130.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 130.0,
+        "sentinel_state_fresh": false,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    }
+  ]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    telemetry_only = load_scenario_definition(scenario_path)
+    results = replay_definition(config, telemetry_only)
+    assert_scenario_expectations(telemetry_only.steps, results)
+    assert all(result.actual_action.value != "REMOTE_REBOOT" for result in results)
+
+
+def test_scenario_override_rejects_unknown_threshold_key(tmp_path: Path) -> None:
+    config = build_config(tmp_path)
+    scenario_path = tmp_path / "SCN-COUNTER-BAD-OVERRIDE.json"
+    scenario_path.write_text(
+        """
+{
+  "scenario_id": "SCN-COUNTER-BAD-OVERRIDE",
+  "injected_failure": "invalid override key",
+  "expected_evidence": "n/a",
+  "recovery_verification": "loader should fail with explicit key error",
+  "threshold_overrides": {
+    "not_a_real_threshold": 3
+  },
+  "steps": [
+    {
+      "step_id": "SCN-COUNTER-BAD-OVERRIDE-STEP-1",
+      "expected_state": "HEALTHY",
+      "expected_action": "NO_ACTION",
+      "observation": {
+        "ts": 1000.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:00+00:00",
+        "host_heartbeat_age_sec": 1.0,
+        "host_heartbeat_fresh": true,
+        "host_heartbeat_progressing": true,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 1.0,
+        "sentinel_stats_fresh": true,
+        "sentinel_state_age_sec": 1.0,
+        "sentinel_state_fresh": true,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    }
+  ]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    scenario = load_scenario_definition(scenario_path)
+
+    with pytest.raises(ValueError, match="threshold override contains unknown key\\(s\\)"):
+        replay_definition(config, scenario)
