@@ -301,12 +301,12 @@ class StateMachine:
         if current_boot_id is None:
             return
         ev = classification.evidence
-        if ev.host_heartbeat_fresh and ev.sentinel_fresh and ev.ssh_ok:
+        if ev.host_heartbeat_fresh and ev.host_heartbeat_progressing and ev.sentinel_fresh and ev.ssh_ok:
             runtime.last_telemetry_healthy_boot_id = current_boot_id
 
     def _telemetry_reconciled(self, classification: Classification) -> bool:
         ev = classification.evidence
-        return ev.host_heartbeat_fresh and ev.sentinel_fresh
+        return ev.host_heartbeat_fresh and ev.host_heartbeat_progressing and ev.sentinel_fresh
 
     def _update_lockout_latch(self, runtime: ControllerRuntimeState, now_ts: float) -> str | None:
         active = self._lockout_active(runtime, now_ts)

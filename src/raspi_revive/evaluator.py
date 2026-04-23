@@ -26,9 +26,6 @@ def build_evidence(obs: Observation) -> Evidence:
 
 def classify(obs: Observation) -> Classification:
     ev = build_evidence(obs)
-    # NOTE: host_heartbeat_progressing is captured in Evidence but not yet used in
-    # classification gates. For future hardening, consider treating sustained
-    # "fresh-but-not-progressing" heartbeat as degradation signal.
 
     if ev.gpio_fresh and ev.host_heartbeat_fresh and ev.ping_ok and (not ev.ssh_ok):
         return Classification(
@@ -45,6 +42,19 @@ def classify(obs: Observation) -> Classification:
         )
 
     sentinel_stale = not ev.sentinel_fresh
+    if (
+        ev.gpio_fresh
+        and ev.host_heartbeat_fresh
+        and (not ev.host_heartbeat_progressing)
+        and ev.ssh_ok
+        and sentinel_stale
+    ):
+        return Classification(
+            state=ControllerState.TELEMETRY_PIPELINE_FAILURE,
+            evidence=ev,
+            reason="host heartbeat is fresh but not progressing while sentinel telemetry is stale",
+        )
+
     if ev.gpio_fresh and ev.host_heartbeat_fresh and ev.ssh_ok and sentinel_stale:
         return Classification(
             state=ControllerState.SENTINEL_ONLY_FAILURE,

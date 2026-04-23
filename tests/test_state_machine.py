@@ -91,6 +91,7 @@ def make_observation(
     *,
     gpio_fresh: bool,
     host_fresh: bool,
+    host_progressing: bool = True,
     ping_ok: bool,
     ssh_ok: bool,
     sentinel_stats_fresh: bool,
@@ -106,7 +107,7 @@ def make_observation(
         host_wall_time="2026-04-19T00:00:00+00:00",
         host_heartbeat_age_sec=1.0 if host_fresh else 100.0,
         host_heartbeat_fresh=host_fresh,
-        host_heartbeat_progressing=True,
+        host_heartbeat_progressing=host_progressing,
         gpio_heartbeat_age_sec=1.0 if gpio_fresh else 100.0,
         gpio_heartbeat_fresh=gpio_fresh,
         sentinel_stats_age_sec=1.0 if sentinel_stats_fresh else 100.0,
@@ -150,6 +151,25 @@ def test_sentinel_stale_only_stops_at_restart_sentinel(tmp_path: Path) -> None:
     )
     decision = machine.decide(runtime, classify(obs), current_boot_id=obs.host_boot_id)
     assert decision.chosen_action == RecoveryAction.RESTART_SENTINEL
+
+
+def test_sentinel_stale_with_non_progressing_heartbeat_does_not_restart_sentinel(tmp_path: Path) -> None:
+    config = build_config(tmp_path)
+    machine = StateMachine(config)
+    runtime = ControllerRuntimeState()
+
+    obs = make_observation(
+        gpio_fresh=True,
+        host_fresh=True,
+        host_progressing=False,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=False,
+        sentinel_state_fresh=True,
+    )
+    decision = machine.decide(runtime, classify(obs), current_boot_id=obs.host_boot_id)
+    assert decision.classified_state.value == "TELEMETRY_PIPELINE_FAILURE"
+    assert decision.chosen_action == RecoveryAction.NO_ACTION
 
 
 def test_freeze_needs_consecutive_cycles_before_gpio_reboot(tmp_path: Path) -> None:
@@ -297,6 +317,43 @@ def test_reboot_verification_uses_boot_id_change(tmp_path: Path, monkeypatch) ->
     verified = machine.decide(runtime, classify(changed_boot), current_boot_id=changed_boot.host_boot_id)
     assert verified.classified_state.value != "RECOVERY_IN_PROGRESS"
     assert runtime.pending_verification is None
+
+
+def test_remote_reboot_requires_progressing_telemetry_baseline(tmp_path: Path) -> None:
+    config = build_config(tmp_path)
+    machine = StateMachine(config)
+    runtime = ControllerRuntimeState()
+
+    non_progressing_baseline = make_observation(
+        gpio_fresh=True,
+        host_fresh=True,
+        host_progressing=False,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+        host_boot_id="boot-a",
+    )
+    baseline_decision = machine.decide(
+        runtime,
+        classify(non_progressing_baseline),
+        current_boot_id=non_progressing_baseline.host_boot_id,
+    )
+    assert baseline_decision.classified_state.value == "HEALTHY"
+
+    degraded = make_observation(
+        gpio_fresh=False,
+        host_fresh=False,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+        host_boot_id="boot-a",
+    )
+    decision = machine.decide(runtime, classify(degraded), current_boot_id=degraded.host_boot_id)
+    assert decision.classified_state.value == "HOST_DEGRADED"
+    assert decision.chosen_action == RecoveryAction.NO_ACTION
+    assert "telemetry baseline not established" in decision.reason
 
 
 def test_false_positive_guard_freeze_does_not_trigger_on_single_cycle(tmp_path: Path) -> None:

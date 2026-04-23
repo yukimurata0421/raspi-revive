@@ -99,7 +99,7 @@ hard action を解禁する前に、Phase B を2つのゲートとして明示�
   - sentinel-only 介入挙動と観測品質を確認する
 - B2: hard-action exclusion validation
   - `enable_remote_reboot=false` のまま、
-  - 既知の false positive パターンが reboot へ昇格しないことを検証する
+  - false positive パターンで reboot 候補が抑止されることを検証する
 
 B2 の最小固定シナリオ:
 
@@ -128,7 +128,7 @@ B2 の最小固定シナリオ:
 - host-degraded の gate 成立時のみ remote reboot
 - reboot 後 verification が `boot_id` 変化で完了
 - cooldown/lockout で reboot loop を抑止
-- `host_heartbeat_progressing` を注意書きから gate に昇格させるか判断する
+- `host_heartbeat_progressing` を telemetry gate として適用し、scenario replay で検証する
 
 ロールバック条件:
 

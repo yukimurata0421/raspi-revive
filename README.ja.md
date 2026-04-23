@@ -13,6 +13,12 @@
 - `raspi-5-agent`: 事実のみを出力（host heartbeat、GPIO heartbeat、sentinel facts export）
 - `raspi-zero-controller`: 判定と介入を担当（state machine、段階的 action、cooldown/lockout、監査ログ）
 
+## このリポジトリで示すもの
+
+- Fact/Decision/Intervention 境界を分離した hardware-adjacent な制御ループ実装
+- observation-only から out-of-band recovery へ進む evidence gate 付き段階投入
+- 実機 Raspberry Pi での Phase A から Phase C までの運用検証記録
+
 ## 現在のスコープと未完成事項
 
 - 公開ベースラインの投入は `Phase A`（observation-first）からの段階適用を維持する。
@@ -42,7 +48,7 @@
 | `MANAGEMENT_PLANE_DEGRADED` | gpio fresh + host heartbeat fresh + ping ok + ssh fail | `NO_ACTION` | 常時許可 |
 | `NETWORK_ONLY_ISSUE` | ping/ssh 問題 + out-of-band gpio fresh | `NO_ACTION` | 常時許可 |
 | `SENTINEL_ONLY_FAILURE` | gpio fresh + host heartbeat fresh + ssh ok + sentinel stale | `RESTART_SENTINEL` | Phase B 以降で有効 |
-| `TELEMETRY_PIPELINE_FAILURE` | host heartbeat stale + sentinel stale + gpio fresh + ssh ok | `NO_ACTION` | 常時許可 |
+| `TELEMETRY_PIPELINE_FAILURE` | （host heartbeat stale + sentinel stale + gpio fresh + ssh ok）または（host heartbeat は fresh だが progressing しない + sentinel stale + gpio fresh + ssh ok） | `NO_ACTION` | 常時許可 |
 | `HOST_DEGRADED` | gpio stale + host stale + ssh ok かつ同一 boot 内で telemetry 正常履歴あり | `REMOTE_REBOOT` | Phase B では無効（Phase C 以降） |
 | `FREEZE_SUSPECTED` | gpio stale + host stale + ssh fail + 連続サイクル成立 | `GPIO_REBOOT` | Phase C まで無効（Phase D 以降） |
 
