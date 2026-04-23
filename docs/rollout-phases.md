@@ -151,6 +151,7 @@ Exit criteria:
 - freeze-suspected sustained incidents are required before gpio action
 - no gpio actions during network-only or management-plane degraded states
 - lockout behavior remains correct under repeated severe faults
+- telemetry-pipeline prolonged failures have a notify-only escalation path without enabling automatic reboot
 
 Rollback trigger:
 

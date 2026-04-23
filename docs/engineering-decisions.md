@@ -110,7 +110,7 @@
 
 ### Context
 
-- During Phase C operation, a remote-reboot loop was observed at `06:55` and `06:58 JST` on `2026-04-23`.
+- During Phase C operation on `2026-04-23`, a remote-reboot loop was observed twice in a short post-validation window (`T+0`, `T+~180s`).
 - Incident evidence showed:
   - `REMOTE_REBOOT` executions were recorded in `actions.jsonl`.
   - SSH reachability was still present at incident time.
@@ -139,7 +139,7 @@
 
 - RCA and runtime evidence are logged in:
   - `docs/phase-c-operations-log.md`
-  - incident entries for `2026-04-23 06:55/06:58 JST`
+  - incident entries recorded as relative timings (`T+0`, `T+~180s`) in public docs
 - Regression checks after hardening:
   - `pytest -q` passed
   - `ruff check` passed

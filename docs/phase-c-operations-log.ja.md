@@ -4,7 +4,7 @@
 
 ## 背景とこの文書の意図
 
-- 背景: `2026-04-23` の `REMOTE_REBOOT` 実行検証を起点に、`06:55` と `06:58` JST に再起動ループ（誤発火）を確認した。
+- 背景: `2026-04-23` の `REMOTE_REBOOT` 実行検証を起点に、短いポスト検証ウィンドウ（`T+0`, `T+約180s`）で再起動ループ（誤発火）を2回確認した。
 - 意図: この文書は「テスト成功記録」だけでなく、「誤発火の事実」「原因」「封じ込め」「再発防止ロジック」を同じ系列で追跡するための記録である。
 - 運用方針: `REMOTE_REBOOT` は常時開放ではなく、証拠ゲートを満たす実装と明示的な運用判断の両方で制御する。
 
@@ -92,16 +92,17 @@
   - `pi5:/var/log/raspi-revive/actions.jsonl`
   - `pi5:/var/log/raspi-revive/events.jsonl`
   - `pi5-guard:/etc/raspi-revive/controller.toml`
-- 事象時刻: `2026-04-23 06:55` と `06:58 JST`
+- 事象時刻（公開表記）: 短いポスト検証ウィンドウを `T+0` と `T+約180s` で表現
 
 ### 観測事実
 
-- `REMOTE_REBOOT` が `06:55` と `06:58 JST` に実行された。
+- `REMOTE_REBOOT` が同ウィンドウ内で2回実行された（`T+0`, `T+約180s`）。
 - 事象中もホストへの SSH 到達性は維持されていた。
 - 根因は `host heartbeat` と `sentinel` の stale が `HOST_DEGRADED` に吸い込まれていた判定式だった。
 - 即時の封じ込めとして以下を実施:
   - `enable_remote_reboot=false`
   - `pi5-guard` 上で controller service を再起動
+- 正確なローカル時刻は private runbook 側に保持し、公開文書は相対表現で記録する。
 
 ### 実施したハードニング
 

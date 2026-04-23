@@ -109,7 +109,7 @@
 
 ### 背景
 
-- Phase C 運用中の `2026-04-23 06:55` と `06:58 JST` に remote reboot ループ事象を確認した。
+- Phase C 運用中の `2026-04-23` に、短いポスト検証ウィンドウ（`T+0`, `T+約180s`）で remote reboot ループ事象を2回確認した。
 - 事象時点の証跡では:
   - `actions.jsonl` に `REMOTE_REBOOT` 実行記録が残っている。
   - SSH 到達性は維持されていた。
@@ -138,7 +138,7 @@
 
 - RCA と運用証跡は次に記録:
   - `docs/phase-c-operations-log.md`
-  - `2026-04-23 06:55/06:58 JST` の incident 記録
+  - 公開文書では相対時刻（`T+0`, `T+約180s`）で incident を記録
 - ハードニング後の回帰確認:
   - `pytest -q` 通過
   - `ruff check` 通過
