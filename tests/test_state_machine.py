@@ -62,6 +62,7 @@ def build_config(tmp_path: Path) -> ControllerConfig:
             enable_remote_reboot=True,
             enable_gpio_reboot=True,
             enable_power_button_pulse=True,
+            enabled_phases=frozenset({"A", "B", "C", "D"}),
             restart_sentinel_cmd=["true"],
             remote_reboot_cmd=["true"],
             gpio_reboot_cmd=["true"],
@@ -439,6 +440,57 @@ def test_action_disabled_by_rollout_policy(tmp_path: Path) -> None:
     assert decision.classified_state.value == "HOST_DEGRADED"
     assert decision.chosen_action == RecoveryAction.NO_ACTION
     assert "rollout phase policy" in decision.reason
+
+
+def test_action_disabled_when_required_phase_not_enabled(tmp_path: Path) -> None:
+    config = build_config(tmp_path)
+    config.actions.enabled_phases = frozenset({"A", "B"})
+    machine = StateMachine(config)
+    runtime = ControllerRuntimeState()
+    runtime.last_telemetry_healthy_boot_id = "boot-a"
+
+    obs = make_observation(
+        gpio_fresh=False,
+        host_fresh=False,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+    )
+    decision = machine.decide(runtime, classify(obs), current_boot_id=obs.host_boot_id)
+    assert decision.classified_state.value == "HOST_DEGRADED"
+    assert decision.chosen_action == RecoveryAction.NO_ACTION
+    assert "rollout phase policy" in decision.reason
+
+
+def test_action_enablement_requires_phase_and_legacy_boolean(tmp_path: Path) -> None:
+    config = build_config(tmp_path)
+    machine = StateMachine(config)
+    runtime = ControllerRuntimeState()
+    runtime.last_telemetry_healthy_boot_id = "boot-a"
+
+    obs = make_observation(
+        gpio_fresh=False,
+        host_fresh=False,
+        ping_ok=True,
+        ssh_ok=True,
+        sentinel_stats_fresh=True,
+        sentinel_state_fresh=True,
+    )
+
+    config.actions.enabled_phases = frozenset({"A", "B", "C"})
+    config.actions.enable_remote_reboot = False
+    denied_by_boolean = machine.decide(runtime, classify(obs), current_boot_id=obs.host_boot_id)
+    assert denied_by_boolean.classified_state.value == "HOST_DEGRADED"
+    assert denied_by_boolean.chosen_action == RecoveryAction.NO_ACTION
+    assert "rollout phase policy" in denied_by_boolean.reason
+
+    config.actions.enabled_phases = frozenset({"A", "B"})
+    config.actions.enable_remote_reboot = True
+    denied_by_phase = machine.decide(runtime, classify(obs), current_boot_id=obs.host_boot_id)
+    assert denied_by_phase.classified_state.value == "HOST_DEGRADED"
+    assert denied_by_phase.chosen_action == RecoveryAction.NO_ACTION
+    assert "rollout phase policy" in denied_by_phase.reason
 
 
 def test_telemetry_pipeline_failure_does_not_trigger_remote_reboot(tmp_path: Path) -> None:

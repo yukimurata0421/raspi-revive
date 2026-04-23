@@ -63,6 +63,7 @@ def _build_config(tmp_path: Path, *, phase_b: bool) -> ControllerConfig:
             enable_remote_reboot=False,
             enable_gpio_reboot=False,
             enable_power_button_pulse=False,
+            enabled_phases=(frozenset({"A", "B"}) if phase_b else frozenset({"A"})),
             restart_sentinel_cmd=["true"],
             remote_reboot_cmd=["true"],
             gpio_reboot_cmd=["true"],

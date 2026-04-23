@@ -54,6 +54,8 @@ Role split:
 
 ## Safety Gates
 
+- `actions.enabled_phases = ["A","B","C", ...]` provides explicit phase gating in config.
+- Action execution requires both phase eligibility (`enabled_phases`) and the legacy action boolean to be true; conflicts fail closed.
 - `cooldown_seconds` suppresses immediate repeated actions.
 - `max_actions_per_window` within `lockout_window_seconds` enters `LOCKOUT`.
 - Reboot actions require post-action verification by `boot_id` change.
@@ -91,6 +93,7 @@ A quiet `events.jsonl` during stable Phase A soak (for example, 18 hours without
 - The queued event tries:
   - append JSONL to the Pi 5 over SSH (`notify.remote_jsonl_path`)
   - Discord webhook post
+- You can define extensible providers with `[[notify.providers]]` (for example `ssh_append`, `discord_webhook`) while keeping backward-compatible legacy fields.
 - Delivery retry policy:
   - every 60 seconds while failures are under 5 minutes
   - exponential backoff after 5 minutes of continuous failure
@@ -138,6 +141,7 @@ Japanese docs are available as `*.ja.md` (for example: `README.ja.md`, `docs/arc
 - Controller can read agent-exported fact files via configured paths.
 - GPIO electrical safety layer is handled outside this repository.
 - `pinctrl` (default GPIO backend) or libgpiod tools, plus `ping` and `ssh`, are available on deployment targets.
+- Runtime JSONL logs are rotated by default using `[logs]` (`max_log_size_mb=10`, `rotation_count=3`).
 
 ## TODO (Future)
 

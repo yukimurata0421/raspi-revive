@@ -41,6 +41,7 @@ enable_restart_sentinel = true
 enable_remote_reboot = true
 enable_gpio_reboot = true
 enable_power_button_pulse = true
+enabled_phases = ["A", "B", "C", "D"]
 restart_sentinel_cmd = ["ssh", "<agent-user>@<agent-host>", "sudo", "systemctl", "restart", "raspi-sentinel.service"]
 remote_reboot_cmd = ["ssh", "<agent-user>@<agent-host>", "sudo", "reboot"]
 gpio_reboot_cmd = ["/usr/local/bin/raspi-revive-gpio-reset", "--profile", "pi5-main"]
@@ -71,3 +72,20 @@ stats_flush_interval_seconds = 60.0
 
 max_queue_size = 256
 max_event_age_seconds = 86400.0
+
+[[notify.providers]]
+name = "ssh_append_default"
+kind = "ssh_append"
+enabled = true
+remote_jsonl_path = "/var/lib/raspi-revive-agent/revive-notify-events.jsonl"
+
+[[notify.providers]]
+name = "discord_webhook_default"
+kind = "discord_webhook"
+enabled = true
+webhook_url = ""
+webhook_url_env = "RASPI_REVIVE_DISCORD_WEBHOOK_URL"
+
+[logs]
+max_log_size_mb = 10.0
+rotation_count = 3
