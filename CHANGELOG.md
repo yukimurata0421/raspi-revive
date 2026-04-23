@@ -18,6 +18,8 @@ All notable changes to this project are documented in this file.
 - Added config-driven phase gate:
   - `actions.enabled_phases` supports explicit phase allowlists (for example `["A","B","C"]`).
   - Legacy action booleans remain supported and are still enforced.
+- Clarified conflict behavior between phase gate and legacy booleans:
+  - action execution is fail-closed and requires both `enabled_phases` and the corresponding legacy action boolean.
 - Added extensible notify provider interface:
   - `[[notify.providers]]` with `kind` (`ssh_append`, `discord_webhook`) and per-provider settings.
   - Legacy notify fields remain backward-compatible.

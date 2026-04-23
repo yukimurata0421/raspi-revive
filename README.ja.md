@@ -55,6 +55,7 @@
 ## Safety Gate
 
 - `actions.enabled_phases = ["A","B","C", ...]` で phase gate を設定ファイル側から明示できる。
+- Action 実行は `enabled_phases` と legacy boolean の両方が成立した場合のみ許可し、矛盾時は fail-closed とする。
 - `cooldown_seconds` で連続介入を抑止。
 - `max_actions_per_window` と `lockout_window_seconds` で `LOCKOUT` へ遷移。
 - reboot 系 action は `boot_id` 変化で post-action verification。

@@ -55,6 +55,7 @@ Role split:
 ## Safety Gates
 
 - `actions.enabled_phases = ["A","B","C", ...]` provides explicit phase gating in config.
+- Action execution requires both phase eligibility (`enabled_phases`) and the legacy action boolean to be true; conflicts fail closed.
 - `cooldown_seconds` suppresses immediate repeated actions.
 - `max_actions_per_window` within `lockout_window_seconds` enters `LOCKOUT`.
 - Reboot actions require post-action verification by `boot_id` change.

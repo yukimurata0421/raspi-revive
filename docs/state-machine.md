@@ -67,6 +67,7 @@
 - lockout entered when action budget exceeded.
 - lockout suppresses all automatic interventions.
 - `maintenance_mode=true` suppresses all interventions without suppressing observation/decision logs.
+- Action enablement is fail-closed: required phase in `enabled_phases` and the corresponding legacy boolean must both be true.
 - incident dedupe suppresses repeated actions for unchanged incident key.
 - lockout latch emits `lockout_entered`, `lockout_still_active`, and `lockout_cleared`.
 - `REMOTE_REBOOT` additionally requires a telemetry baseline in the same boot (`host heartbeat fresh + progressing + sentinel fresh + ssh ok` seen at least once).
