@@ -73,6 +73,7 @@ def test_observer_parse_args_uses_env_defaults(monkeypatch) -> None:
     monkeypatch.setenv("GPIO_OBSERVER_PULL", "down")
     monkeypatch.setenv("GPIO_OBSERVER_INTERVAL_SEC", "0.25")
     monkeypatch.setenv("GPIO_OBSERVER_BACKEND", "pinctrl")
+    monkeypatch.setenv("GPIO_OBSERVER_GPIOD_CHIP", "gpiochip0")
     monkeypatch.setattr(sys, "argv", ["observe_gpio_heartbeat.py"])
     args = mod.parse_args()
     assert args.mirror_output == "/tmp/test-gpio-heartbeat.json"
@@ -80,6 +81,7 @@ def test_observer_parse_args_uses_env_defaults(monkeypatch) -> None:
     assert args.pull == "down"
     assert args.interval_sec == 0.25
     assert args.backend == "pinctrl"
+    assert args.gpiod_chip == "gpiochip0"
 
 
 def test_observer_once_dry_run_writes_mirror(monkeypatch, tmp_path: Path) -> None:
@@ -131,3 +133,27 @@ def test_observer_recovers_from_malformed_mirror_json(monkeypatch, tmp_path: Pat
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["source"] == "gpio_observer"
     assert "last_edge_wall_time" in payload
+
+
+def test_observer_resolve_line_falls_back_to_chip_hint_when_gpiofind_missing(monkeypatch) -> None:
+    mod = _load_module(OBSERVER_PATH, "observe_gpio_heartbeat_fallback")
+    monkeypatch.setattr(mod, "run_capture", lambda cmd: None)
+    assert mod.resolve_line(17, chip_hint="gpiochip0") == ("gpiochip0", 17)
+
+
+def test_observer_read_level_gpiod_uses_v2_cli_shape(monkeypatch) -> None:
+    mod = _load_module(OBSERVER_PATH, "observe_gpio_heartbeat_v2_cli")
+    seen: list[list[str]] = []
+
+    def fake_run_capture(cmd: list[str]) -> str | None:
+        seen.append(cmd)
+        if cmd[0] == "gpiofind":
+            return "gpiochip0 17"
+        if cmd[0] == "gpioget":
+            return "1"
+        return None
+
+    monkeypatch.setattr(mod, "run_capture", fake_run_capture)
+    level = mod.read_level_gpiod(17, "down", "gpiochip0")
+    assert level == 1
+    assert seen[-1] == ["gpioget", "-c", "gpiochip0", "--bias", "pull-down", "--numeric", "17"]

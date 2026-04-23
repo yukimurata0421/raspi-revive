@@ -55,7 +55,7 @@ def run_capture(cmd: list[str]) -> str | None:
     return proc.stdout.strip()
 
 
-def resolve_line(pin: int) -> tuple[str, int] | None:
+def resolve_line(pin: int, chip_hint: str | None = None) -> tuple[str, int] | None:
     for line_name in (f"GPIO{pin}", f"gpio{pin}"):
         out = run_capture(["gpiofind", line_name])
         if not out:
@@ -70,15 +70,23 @@ def resolve_line(pin: int) -> tuple[str, int] | None:
             return chip, int(offset)
         except ValueError:
             continue
+    if chip_hint:
+        # Fallback for environments without gpiofind; Pi GPIO offsets map to BCM IDs.
+        return chip_hint, pin
     return None
 
 
-def configure_input(pin: int, pull: str, backend: str) -> bool:
+def configure_input(pin: int, pull: str, backend: str, gpiod_chip: str) -> bool:
     if backend == "pinctrl":
         mode = {"down": "pd", "up": "pu", "off": "pn"}[pull]
         return run_command(["pinctrl", "set", str(pin), "ip", mode])
     if backend == "gpiod":
-        return resolve_line(pin) is not None
+        resolved = resolve_line(pin, chip_hint=gpiod_chip)
+        if resolved is None:
+            return False
+        chip, offset = resolved
+        bias_flag = {"down": "pull-down", "up": "pull-up", "off": "disabled"}[pull]
+        return run_capture(["gpioget", "-c", chip, "--bias", bias_flag, "--numeric", str(offset)]) is not None
     return False
 
 
@@ -98,13 +106,13 @@ def read_level_pinctrl(pin: int) -> int | None:
     return None
 
 
-def read_level_gpiod(pin: int, pull: str) -> int | None:
-    resolved = resolve_line(pin)
+def read_level_gpiod(pin: int, pull: str, gpiod_chip: str) -> int | None:
+    resolved = resolve_line(pin, chip_hint=gpiod_chip)
     if resolved is None:
         return None
     chip, offset = resolved
     bias_flag = {"down": "pull-down", "up": "pull-up", "off": "disabled"}[pull]
-    out = run_capture(["gpioget", "--bias", bias_flag, chip, str(offset)])
+    out = run_capture(["gpioget", "-c", chip, "--bias", bias_flag, "--numeric", str(offset)])
     if out is None:
         return None
     token = out.strip().split()[-1]
@@ -113,11 +121,11 @@ def read_level_gpiod(pin: int, pull: str) -> int | None:
     return None
 
 
-def read_level(pin: int, pull: str, backend: str) -> int | None:
+def read_level(pin: int, pull: str, backend: str, gpiod_chip: str) -> int | None:
     if backend == "pinctrl":
         return read_level_pinctrl(pin)
     if backend == "gpiod":
-        return read_level_gpiod(pin, pull)
+        return read_level_gpiod(pin, pull, gpiod_chip)
     return None
 
 
@@ -166,6 +174,11 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("GPIO_OBSERVER_BACKEND", "pinctrl"),
         help="GPIO backend used for observer input",
     )
+    parser.add_argument(
+        "--gpiod-chip",
+        default=os.getenv("GPIO_OBSERVER_GPIOD_CHIP", "gpiochip0"),
+        help="GPIO chip used when backend=gpiod and gpiofind is unavailable",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--once", action="store_true")
     return parser.parse_args()
@@ -183,7 +196,7 @@ def main() -> int:
             last_edge_wall_time = edge
 
     last_level: int | None = None
-    if not args.dry_run and not configure_input(args.pin, args.pull, args.backend):
+    if not args.dry_run and not configure_input(args.pin, args.pull, args.backend, args.gpiod_chip):
         payload = {
             "service": "raspi-revive-gpio-observer",
             "source": "gpio_observer",
@@ -193,6 +206,7 @@ def main() -> int:
             "input_pin": args.pin,
             "pull": args.pull,
             "backend": args.backend,
+            "gpiod_chip": args.gpiod_chip,
             "last_level": None,
             "dry_run": args.dry_run,
         }
@@ -208,7 +222,7 @@ def main() -> int:
         if args.dry_run:
             level = 1 if last_level in (None, 0) else 0
         else:
-            level = read_level(args.pin, args.pull, args.backend)
+            level = read_level(args.pin, args.pull, args.backend, args.gpiod_chip)
 
         if level is None:
             status = "read_error"
@@ -230,6 +244,7 @@ def main() -> int:
             "input_pin": args.pin,
             "pull": args.pull,
             "backend": args.backend,
+            "gpiod_chip": args.gpiod_chip,
             "last_level": last_level,
             "edge_seen": edge_seen,
             "dry_run": args.dry_run,

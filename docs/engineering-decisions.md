@@ -105,3 +105,112 @@
 - In Phase B, sentinel-restart effectiveness was validated without opening unsafe actions.
 - At Phase C promotion time, no immediate unsafe action firing was observed.
 - For `inactive (dead)`, operational recurrence suppression is now established through the `raspi-sentinel` lite-side responsibility split.
+
+## 2026-04-23: Phase C false-trigger incident response and reboot policy hardening
+
+### Context
+
+- During Phase C operation, a remote-reboot loop was observed at `06:55` and `06:58 JST` on `2026-04-23`.
+- Incident evidence showed:
+  - `REMOTE_REBOOT` executions were recorded in `actions.jsonl`.
+  - SSH reachability was still present at incident time.
+  - stale telemetry (`host heartbeat` + `sentinel`) could be classified as `HOST_DEGRADED` under the prior rule.
+- This conflicted with the architecture intent: strong interventions must be tied to strong, causally relevant evidence.
+
+### Decisions
+
+1. Separate telemetry pipeline failure from host degradation.
+   - Added `TELEMETRY_PIPELINE_FAILURE` and removed telemetry-only stale paths from `HOST_DEGRADED`.
+   - Rationale: telemetry/exporter faults must not directly trigger host reboot.
+2. Require reboot causality proof before `REMOTE_REBOOT`.
+   - `HOST_DEGRADED` remote reboot now requires:
+     - independent target-plane evidence (`gpio stale + host heartbeat stale + ssh ok`),
+     - and same-boot telemetry baseline previously healthy.
+   - Rationale: avoid acting on missing telemetry alone.
+3. Extend post-reboot suppression into reconciliation.
+   - Added `POST_BOOT_RECONCILIATION` and `RECOVERY_PARTIAL`.
+   - Added `post_boot_reconciliation_wait_seconds`.
+   - Rationale: avoid replaying strong action before telemetry convergence after boot change.
+4. Keep enablement as an operator-controlled gate.
+   - Immediate containment used `enable_remote_reboot=false`.
+   - Re-enable was done only after hardening deployment and regression verification.
+
+### Evidence and Verification
+
+- RCA and runtime evidence are logged in:
+  - `docs/phase-c-operations-log.md`
+  - incident entries for `2026-04-23 06:55/06:58 JST`
+- Regression checks after hardening:
+  - `pytest -q` passed
+  - `ruff check` passed
+- Runtime re-enable evidence:
+  - `phase_changed: PHASE_B -> PHASE_C`
+  - `action_gate_changed` with `enable_remote_reboot=1`
+
+## 2026-04-23: Promote negative validation as a first-class phase gate
+
+### Context
+
+- The incident was not caused by skipping Phase B work.
+- The gap was that Phase B had a strong focus on "can intervention work when intended?" and no explicit, independent gate for "does intervention stay suppressed when it must not fire?"
+- In practice, telemetry-only stale paths surfaced in Phase C as a previously unnamed failure mode.
+
+### Decision
+
+1. Treat strong-action validation as two-directional by design.
+   - Positive validation:
+     - if true `HOST_DEGRADED`, can `REMOTE_REBOOT` execute under control.
+   - Negative validation:
+     - for telemetry-only failure, post-boot transient, or freshness jitter, `REMOTE_REBOOT` must stay blocked.
+2. Split future Phase B into two explicit subphases.
+   - B1: soft-action and observation validation.
+   - B2: hard-action exclusion validation (remote reboot still disabled).
+3. Add fixed B2 counterexample scenarios before any hard-action enablement.
+   - telemetry-only failure
+   - post-boot reconciliation window
+   - sentinel freshness jitter/flap
+
+### Rationale
+
+- This converts a vague "be more careful" lesson into a repeatable design contract.
+- It prevents hard-action rollout from depending on "absence of incident by chance."
+- It reduces the chance that unknown failure modes are discovered only after Phase C enablement.
+
+## 2026-04-24: Locking GPIO observer compatibility and pin-mapping verification
+
+### Context
+
+- During rollback to `GPIO_OBSERVER_PIN=17`, `gpio_fresh` became unstable and required explicit separation of backend behavior vs signal-path mismatch.
+- Investigation showed a combined issue:
+  - `gpiod` compatibility gap in Zero runtime (`gpiofind` dependency and libgpiod v2 CLI mismatch),
+  - temporary pin/config mismatch windows.
+
+### Decisions
+
+1. Treat `gpiod` backend as runtime-compatibility bound, not just code-path complete.
+   - Support fallback resolution when `gpiofind` is missing.
+   - Use libgpiod v2-safe `gpioget -c <chip> --numeric <offset>` invocation shape.
+2. Make pin mapping verification an explicit pre-run operational check.
+   - Force `HIGH/LOW` on Pi 5 `GPIO17` and verify which Zero pin follows.
+3. Separate transition windows from steady-state windows in freshness evaluation.
+   - Avoid using immediate post-change windows for stable-quality comparison.
+
+### Evidence
+
+- Detailed evidence is recorded in `docs/phase-c-operations-log.md` under the `2026-04-24` entry.
+- Key outcomes:
+  - Pi 5 output-hold failure hypothesis was rejected.
+  - `gpiod` compatibility defects were reproducible and then removed by implementation change.
+  - After wiring/config realignment, short-window `gpio_fresh` returned to `100%`.
+
+## Phase A-C decision completeness
+
+The engineering record now explicitly includes:
+
+1. Phase A: GPIO observation-only bring-up, wiring constraints, runtime stabilization.
+2. Phase B: sentinel-only intervention boundary and safe promotion evidence.
+3. Phase C:
+   - initial promotion and runtime verification,
+   - remote reboot execution validation,
+   - false-trigger incident response,
+   - policy hardening and controlled re-enable criteria.
