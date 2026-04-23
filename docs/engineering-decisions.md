@@ -147,6 +147,29 @@
   - `phase_changed: PHASE_B -> PHASE_C`
   - `action_gate_changed` with `enable_remote_reboot=1`
 
+## 2026-04-23: Promote negative validation as a first-class phase gate
+
+### Context
+
+- The key process gap was not "Phase B was skipped."
+- The gap was that phase criteria were weighted toward positive checks ("works when intended") and did not explicitly gate negative checks ("does not fire when it must stay suppressed").
+- This should be documented as phase design policy, not incident narrative.
+
+### Decision
+
+1. Require two-direction validation before hard-action enablement.
+   - Positive validation:
+     - if true `HOST_DEGRADED`, can `REMOTE_REBOOT` execute under control.
+   - Negative validation:
+     - telemetry-only failure, post-boot transient, and freshness jitter must not trigger `REMOTE_REBOOT`.
+2. Split future Phase B into two explicit subphases.
+   - B1: soft-action and observation validation.
+   - B2: hard-action exclusion validation with `enable_remote_reboot=false`.
+3. Keep a minimal fixed B2 counterexample set.
+   - telemetry-only failure
+   - post-boot reconciliation window
+   - sentinel freshness jitter/flap
+
 ## Phase A-C decision completeness
 
 The engineering record now explicitly includes:

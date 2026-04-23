@@ -146,6 +146,29 @@
   - `phase_changed: PHASE_B -> PHASE_C`
   - `action_gate_changed` で `enable_remote_reboot=1`
 
+## 2026-04-23: negative validation をフェーズ昇格条件として明示化
+
+### 背景
+
+- 主要な課題は「Phase Bを実施しなかった」ことではない。
+- 課題は、フェーズ条件が正方向検証（意図どおり動くか）へ寄り、逆方向検証（動いてはいけないときに動かないか）を独立ゲートとして定義していなかった点。
+- これは個別インシデント記録ではなく、フェーズ設計ポリシーとして残す。
+
+### 意思決定
+
+1. hard action 解禁前に、双方向検証を必須化する。
+   - 正方向検証:
+     - 真の `HOST_DEGRADED` で `REMOTE_REBOOT` を制御下で実行できること
+   - 逆方向検証:
+     - telemetry-only failure、post-boot 直後、freshness jitter で `REMOTE_REBOOT` が発火しないこと
+2. 今後の Phase B を2つのサブフェーズに分割する。
+   - B1: soft-action / observation validation
+   - B2: hard-action exclusion validation（`enable_remote_reboot=false` のまま）
+3. B2 の最小固定カウンター例を維持する。
+   - telemetry-only failure
+   - post-boot reconciliation window
+   - sentinel freshness jitter/flap
+
 ## Phase A-C の記録充足性
 
 設計判断の記録は、以下を明示的に含む状態に更新した。

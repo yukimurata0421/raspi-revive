@@ -91,6 +91,22 @@ Rollback trigger:
 
 - restart actions fired during non-sentinel incidents
 
+### B1 / B2 Structure for Future Rollouts
+
+Use Phase B as two explicit gates before enabling any hard action:
+
+- B1: soft-action / observation validation
+  - focus on sentinel-only intervention behavior and telemetry quality.
+- B2: hard-action exclusion validation
+  - keep `enable_remote_reboot=false`,
+  - and verify that known false-positive patterns do not escalate to reboot.
+
+Minimum B2 counterexample set:
+
+- telemetry-only failure (`host heartbeat stale + sentinel stale` while `gpio fresh + ssh ok`)
+- post-boot reconciliation window (no immediate hard action replay)
+- sentinel freshness jitter/flap (stale/fresh oscillation without reboot escalation)
+
 ## Phase C (Enable Remote Reboot in Controlled Window)
 
 Config intent:
