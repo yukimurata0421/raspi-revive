@@ -151,6 +151,7 @@ B2 の最小固定シナリオ:
 - freeze sustained 条件が揃った場合のみ gpio action
 - network-only / management-plane degraded で gpio action が出ない
 - 重故障反復でも lockout が健全に働く
+- telemetry pipeline の長期故障に対し、自動 reboot を有効化せず notify-only でエスカレーションできる
 
 ロールバック条件:
 

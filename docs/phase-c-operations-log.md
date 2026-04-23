@@ -4,7 +4,7 @@ This document keeps an operational record for Phase C runtime verification and i
 
 ## Background and Intent
 
-- Background: after the `REMOTE_REBOOT` validation on `2026-04-23`, a false-trigger reboot loop was observed at `06:55` and `06:58 JST`.
+- Background: after the `REMOTE_REBOOT` validation on `2026-04-23`, a false-trigger reboot loop was observed twice in a short post-validation window (`T+0`, `T+~180s`).
 - Intent: this log is not only a success report; it is the single timeline for incident facts, root-cause evidence, containment, and hardening decisions.
 - Operational stance: keep `REMOTE_REBOOT` under evidence-gated control, and change enablement only after explicit operator decision.
 
@@ -92,16 +92,17 @@ This document keeps an operational record for Phase C runtime verification and i
   - `pi5:/var/log/raspi-revive/actions.jsonl`
   - `pi5:/var/log/raspi-revive/events.jsonl`
   - `pi5-guard:/etc/raspi-revive/controller.toml`
-- Incident window: `2026-04-23 06:55` and `06:58 JST`
+- Incident window (public): short post-validation window represented as `T+0` and `T+~180s`
 
 ### Observed Facts
 
-- `REMOTE_REBOOT` was executed at `06:55` and `06:58 JST`.
+- `REMOTE_REBOOT` was executed twice in that short window (`T+0`, `T+~180s`).
 - Host was still reachable by SSH during the incident.
 - Root condition was telemetry stale (`host heartbeat` and `sentinel`) being classified as `HOST_DEGRADED`.
 - Temporary containment was applied immediately:
   - `enable_remote_reboot=false`
   - controller service restarted on `pi5-guard`
+- Exact host-local timestamps are kept in private runbook artifacts; public docs retain relative timing.
 
 ### Hardening Applied
 

@@ -12,6 +12,11 @@ All notable changes to this project are documented in this file.
 - Replaced scenario override `setattr` mutation with typed `dataclasses.replace` updates and explicit unknown-key validation.
 - Added regression tests for non-progressing heartbeat behavior and invalid scenario override keys.
 - Updated README and state-machine/rollout docs (JA/EN) to align with the enforced gate.
+- Clarified public incident timeline policy:
+  - public docs use relative incident timings (`T+...`) for false-trigger windows, with exact host-local timestamps kept in private runbooks.
+- Clarified phase-gate conflict policy:
+  - action execution is fail-closed and requires both `enabled_phases` and legacy action booleans.
+- Added explicit regression coverage for phase/boolean conflict combinations.
 
 ### Config flexibility and runtime safety extensions
 

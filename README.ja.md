@@ -23,7 +23,7 @@
 
 - 公開ベースラインの投入は `Phase A`（observation-first）からの段階適用を維持する。
 - 実運用は Phase A/B の証拠を経て、実機で `Phase C` まで進行している。
-- `2026-04-23` の `REMOTE_REBOOT` 検証後、`06:55` と `06:58` JST に誤発火由来の再起動ループ事象を確認した。
+- `2026-04-23` の `REMOTE_REBOOT` 検証後、短時間のポスト検証ウィンドウ内で誤発火由来の再起動ループ事象を2回確認した。
 - このため現運用では `enable_remote_reboot=false` で封じ込めを継続し、`REMOTE_REBOOT` は「再有効化条件を満たした時のみ」戻す。
 - `Phase C` の設計意図は、`RESTART_SENTINEL` を基本介入とし、`REMOTE_REBOOT` は OS 側劣化を示す独立証拠がある場合に限定すること。
 - より強い介入は、低リスク phase の証拠が揃ってから段階的に有効化する。
@@ -55,6 +55,7 @@
 ## Safety Gate
 
 - `actions.enabled_phases = ["A","B","C", ...]` で phase gate を設定ファイル側から明示できる。
+- Action 実行は `enabled_phases` と legacy boolean の両方が成立した場合のみ許可し、矛盾時は fail-closed とする。
 - `cooldown_seconds` で連続介入を抑止。
 - `max_actions_per_window` と `lockout_window_seconds` で `LOCKOUT` へ遷移。
 - reboot 系 action は `boot_id` 変化で post-action verification。
@@ -144,4 +145,5 @@ python3 -m raspi_revive.scenario_replay_cli \
 
 - より強い Level 4 最終手段を追加。
 - `LOCKOUT` 向け専用 notifier 連携を追加。
+- `TELEMETRY_PIPELINE_FAILURE` 長時間継続時の notify-only エスカレーション（自動 reboot なし）を追加。
 - コマンド実行以外の GPIO backend を追加。

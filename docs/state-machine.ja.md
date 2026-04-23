@@ -66,6 +66,7 @@
 - 予算超過で lockout
 - lockout 中は自動介入を停止
 - `maintenance_mode=true` で介入を全面停止（観測/判定ログは継続）
+- Action 有効化は fail-closed とし、`enabled_phases` の該当 phase と対応する legacy boolean の両方が true の場合のみ許可
 - incident dedupe で同一 incident key の再介入を抑止
 - lockout latch イベント: `lockout_entered`, `lockout_still_active`, `lockout_cleared`
 - `REMOTE_REBOOT` は同一 boot 内の telemetry baseline（host heartbeat fresh + progressing + sentinel fresh + ssh ok）確認後のみ許可

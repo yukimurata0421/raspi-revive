@@ -23,7 +23,7 @@ Role split:
 
 - Public baseline profile remains staged from `Phase A` (observation-first) upward.
 - Field operation has progressed through `Phase C` on real hardware after Phase A/B evidence.
-- After a `REMOTE_REBOOT` validation run on `2026-04-23`, a false-trigger reboot loop was observed at `06:55` and `06:58 JST`.
+- After a `REMOTE_REBOOT` validation run on `2026-04-23`, a false-trigger reboot loop was observed twice in a short post-validation window.
 - Current field containment keeps `enable_remote_reboot=false`; `REMOTE_REBOOT` is re-enabled only when explicit safety criteria are met.
 - The intended Phase C policy is: keep `RESTART_SENTINEL` as primary intervention and allow `REMOTE_REBOOT` only with independent host-degradation evidence.
 - Stronger interventions remain staged and must be enabled only after evidence from lower-risk phases.
@@ -55,6 +55,7 @@ Role split:
 ## Safety Gates
 
 - `actions.enabled_phases = ["A","B","C", ...]` provides explicit phase gating in config.
+- Action execution requires both phase eligibility (`enabled_phases`) and the legacy action boolean to be true; conflicts fail closed.
 - `cooldown_seconds` suppresses immediate repeated actions.
 - `max_actions_per_window` within `lockout_window_seconds` enters `LOCKOUT`.
 - Reboot actions require post-action verification by `boot_id` change.
@@ -146,4 +147,5 @@ Japanese docs are available as `*.ja.md` (for example: `README.ja.md`, `docs/arc
 
 - Add Level 4 strongest fallback action with stricter gates.
 - Add dedicated notifier integration on `LOCKOUT`.
+- Add a notify-only escalation policy for prolonged `TELEMETRY_PIPELINE_FAILURE` (no automatic reboot).
 - Add hardware-specific GPIO driver backends beyond command execution.
