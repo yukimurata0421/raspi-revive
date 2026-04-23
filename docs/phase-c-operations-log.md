@@ -148,6 +148,51 @@ This document keeps an operational record for Phase C runtime verification and i
   - classification/action-gate hardening was applied,
   - local regression checks passed.
 
+## Record: 2026-04-23 (JST) Sentinel Fact Freshness Flapping Analysis and Threshold Tuning
+
+### Scope
+
+- Controller host: `pi5-guard`
+- Config: `/etc/raspi-revive/controller.toml`
+- Runtime logs:
+  - `/var/log/raspi-revive/observations.jsonl`
+  - `/var/log/raspi-revive/decisions.jsonl`
+  - `/var/log/raspi-revive/actions.jsonl`
+  - `/var/log/raspi-revive/events.jsonl`
+- Sentinel schedule inputs:
+  - `/etc/systemd/system/raspi-sentinel.timer`
+  - `/etc/raspi-sentinel/config.toml`
+
+### Investigation Findings
+
+- `raspi-revive` stale thresholds were:
+  - `sentinel_stats_stale_sec = 30.0`
+  - `sentinel_state_stale_sec = 30.0`
+- `raspi-sentinel` run cadence was configured at `OnUnitActiveSec=30s` with jitter (`RandomizedDelaySec=5s`, `AccuracySec=15s`), and actual start intervals were mostly around `35-45s`.
+- In the `2026-04-23 09:00+ JST` window before tuning:
+  - `SENTINEL_ONLY_FAILURE` repeatedly appeared with reason `sentinel facts stale while host/gpio/ssh indicate OS alive`.
+  - `REMOTE_REBOOT` / `RESTART_SENTINEL` were not fired (`NO_ACTION` only), so this was a data-freshness flapping issue, not an intervention storm.
+- Cross-host mtime checks showed mirror lag was not the primary factor; the dominant cause was threshold-vs-cadence mismatch.
+
+### Change Applied
+
+- Updated `/etc/raspi-revive/controller.toml` on `pi5-guard`:
+  - `sentinel_stats_stale_sec = 60.0`
+  - `sentinel_state_stale_sec = 60.0`
+- Restarted `raspi-revive-controller.service`.
+- Post-change status at `2026-04-23 18:02 JST`:
+  - service `active (running)`
+  - immediate sample window remained `HEALTHY`.
+
+### Short Verification After Change
+
+- Observation watch window: `2026-04-23 18:02:35` to `18:04:25 JST` (about 110s)
+- Results:
+  - `observations=10`
+  - `state=HEALTHY` for all entries
+  - `sentinel_stats_fresh=false` / `sentinel_state_fresh=false`: `0`
+- This does not replace longer soak validation, but confirms the immediate flapping trigger condition was removed in this window.
+
 ## Phase A-C Coverage Check
 
 This log plus linked docs now explicitly cover:
