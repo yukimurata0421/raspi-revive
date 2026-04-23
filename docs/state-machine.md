@@ -34,12 +34,14 @@
 2. `NETWORK_ONLY_ISSUE`
    - `(not ping_ok or not ssh_ok)` and `gpio_fresh`
 3. `SENTINEL_ONLY_FAILURE`
-   - `gpio_fresh` and `host_heartbeat_fresh` and `ssh_ok`
+   - `gpio_fresh` and `host_heartbeat_fresh` and `host_heartbeat_progressing` and `ssh_ok`
    - and (`sentinel_stats_fresh == false` or `sentinel_state_fresh == false`)
 4. `TELEMETRY_PIPELINE_FAILURE`
    - `gpio_fresh` and `ssh_ok`
-   - and `host_heartbeat_fresh == false`
-   - and (`sentinel_stats_fresh == false` or `sentinel_state_fresh == false`)
+   - and either:
+     - `host_heartbeat_fresh == false` and (`sentinel_stats_fresh == false` or `sentinel_state_fresh == false`)
+     - `host_heartbeat_fresh == true` and `host_heartbeat_progressing == false`
+       and (`sentinel_stats_fresh == false` or `sentinel_state_fresh == false`)
 5. `HOST_DEGRADED`
    - formula:
      - `ssh_ok AND not gpio_fresh AND not host_heartbeat_fresh`
@@ -67,7 +69,7 @@
 - `maintenance_mode=true` suppresses all interventions without suppressing observation/decision logs.
 - incident dedupe suppresses repeated actions for unchanged incident key.
 - lockout latch emits `lockout_entered`, `lockout_still_active`, and `lockout_cleared`.
-- `REMOTE_REBOOT` additionally requires a telemetry baseline in the same boot (`host heartbeat + sentinel fresh + ssh ok` seen at least once).
+- `REMOTE_REBOOT` additionally requires a telemetry baseline in the same boot (`host heartbeat fresh + progressing + sentinel fresh + ssh ok` seen at least once).
 
 ## Post-action Verification
 

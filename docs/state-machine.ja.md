@@ -34,12 +34,13 @@
 2. `NETWORK_ONLY_ISSUE`
    - `(not ping_ok or not ssh_ok)` and `gpio_fresh`
 3. `SENTINEL_ONLY_FAILURE`
-   - `gpio_fresh` and `host_heartbeat_fresh` and `ssh_ok`
+   - `gpio_fresh` and `host_heartbeat_fresh` and `host_heartbeat_progressing` and `ssh_ok`
    - かつ `sentinel_stats_fresh == false` または `sentinel_state_fresh == false`
 4. `TELEMETRY_PIPELINE_FAILURE`
    - `gpio_fresh` and `ssh_ok`
-   - かつ `host_heartbeat_fresh == false`
-   - かつ `sentinel_stats_fresh == false` または `sentinel_state_fresh == false`
+   - かつ次のいずれか:
+     - `host_heartbeat_fresh == false` かつ `sentinel_stats_fresh == false` または `sentinel_state_fresh == false`
+     - `host_heartbeat_fresh == true` かつ `host_heartbeat_progressing == false` かつ `sentinel_stats_fresh == false` または `sentinel_state_fresh == false`
 5. `HOST_DEGRADED`
    - 式:
      - `ssh_ok AND not gpio_fresh AND not host_heartbeat_fresh`
@@ -67,7 +68,7 @@
 - `maintenance_mode=true` で介入を全面停止（観測/判定ログは継続）
 - incident dedupe で同一 incident key の再介入を抑止
 - lockout latch イベント: `lockout_entered`, `lockout_still_active`, `lockout_cleared`
-- `REMOTE_REBOOT` は同一 boot 内の telemetry baseline（host heartbeat fresh + sentinel fresh + ssh ok）確認後のみ許可
+- `REMOTE_REBOOT` は同一 boot 内の telemetry baseline（host heartbeat fresh + progressing + sentinel fresh + ssh ok）確認後のみ許可
 
 ## Post-action Verification
 

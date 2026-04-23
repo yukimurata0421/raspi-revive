@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## 2026-04-23
 
+### Heartbeat progression gate hardening
+
+- Promoted `host_heartbeat_progressing` from note-only evidence to an enforced decision gate.
+- Added `fresh-but-not-progressing` + `sentinel stale` classification path to `TELEMETRY_PIPELINE_FAILURE` to prevent false `RESTART_SENTINEL` escalation.
+- Tightened telemetry baseline and reconciliation checks so `REMOTE_REBOOT` requires progressing host heartbeat evidence.
+- Replaced scenario override `setattr` mutation with typed `dataclasses.replace` updates and explicit unknown-key validation.
+- Added regression tests for non-progressing heartbeat behavior and invalid scenario override keys.
+- Updated README and state-machine/rollout docs (JA/EN) to align with the enforced gate.
+
 ### Config flexibility and runtime safety extensions
 
 - Added config-driven phase gate:

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 import json
+from typing import TypeVar
 
 from .config import ControllerConfig, ControllerModeConfig
 from .evaluator import classify
 from .models import ControllerRuntimeState, Observation, RecoveryAction
 from .state_machine import StateMachine
+
+T = TypeVar("T")
 
 
 @dataclass(slots=True)
@@ -118,6 +121,15 @@ def load_scenario_definitions_from_dir(path: str | Path) -> list[ScenarioDefinit
     return [load_scenario_definition(f) for f in files]
 
 
+def _replace_dataclass_fields(instance: T, overrides: dict[str, int | float], section: str) -> T:
+    valid_keys = {field.name for field in fields(instance)}
+    unknown_keys = sorted(set(overrides) - valid_keys)
+    if unknown_keys:
+        unknown = ", ".join(unknown_keys)
+        raise ValueError(f"{section} override contains unknown key(s): {unknown}")
+    return replace(instance, **overrides)
+
+
 def _apply_scenario_mode(config: ControllerConfig, scenario: ScenarioDefinition) -> ControllerConfig:
     updated = replace(
         config,
@@ -128,13 +140,17 @@ def _apply_scenario_mode(config: ControllerConfig, scenario: ScenarioDefinition)
     if scenario.maintenance_mode is not None:
         updated = replace(updated, mode=ControllerModeConfig(maintenance_mode=scenario.maintenance_mode))
     if scenario.threshold_overrides:
-        threshold = updated.threshold
-        for key, value in scenario.threshold_overrides.items():
-            setattr(threshold, key, value)
+        updated = replace(
+            updated,
+            threshold=_replace_dataclass_fields(
+                updated.threshold, scenario.threshold_overrides, section="threshold"
+            ),
+        )
     if scenario.guard_overrides:
-        guard = updated.guard
-        for key, value in scenario.guard_overrides.items():
-            setattr(guard, key, value)
+        updated = replace(
+            updated,
+            guard=_replace_dataclass_fields(updated.guard, scenario.guard_overrides, section="guard"),
+        )
     return updated
 
 

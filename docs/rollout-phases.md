@@ -99,7 +99,7 @@ Use Phase B as two explicit gates before enabling any hard action:
   - focus on sentinel-only intervention behavior and telemetry quality.
 - B2: hard-action exclusion validation
   - keep `enable_remote_reboot=false`,
-  - and verify that known false-positive patterns do not escalate to reboot.
+  - but verify that reboot candidates stay suppressed in known false-positive patterns.
 
 Minimum B2 counterexample set:
 
@@ -128,7 +128,7 @@ Exit criteria:
 - host-degraded incidents escalate to remote reboot only when gates match
 - post-action verification tracks reboot via `boot_id` change
 - lockout/cooldown stop repeated reboot loops
-- decide whether to promote `host_heartbeat_progressing` from note to enforced gate
+- enforce `host_heartbeat_progressing` as a telemetry gate and validate with scenario replay
 
 Rollback trigger:
 

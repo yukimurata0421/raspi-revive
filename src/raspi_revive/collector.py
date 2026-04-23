@@ -40,7 +40,9 @@ class ObservationCollector:
             if isinstance(wall_raw, str) and parse_iso8601(wall_raw) is not None:
                 host_wall = wall_raw
 
-        progressing = False
+        # First observation does not have a prior seq baseline; treat it as progressing
+        # when seq exists to avoid startup false negatives.
+        progressing = host_seq is not None
         if host_seq is not None and prev_host_seq is not None:
             progressing = host_seq > prev_host_seq
 

@@ -13,6 +13,12 @@ Role split:
 - `raspi-5-agent`: facts only (host heartbeat, GPIO heartbeat emission, sentinel facts export)
 - `raspi-zero-controller`: judgment + intervention (state machine, staged actions, cooldown/lockout, audit logs)
 
+## What This Repository Demonstrates
+
+- strict Fact/Decision/Intervention separation in a solo-built hardware-adjacent control loop
+- evidence-gated staged rollout from observation-only to out-of-band recovery
+- operational validation artifacts from Phase A through Phase C on real Raspberry Pi hardware
+
 ## Current Scope and Gaps
 
 - Public baseline profile remains staged from `Phase A` (observation-first) upward.
@@ -42,7 +48,7 @@ Role split:
 | `MANAGEMENT_PLANE_DEGRADED` | gpio fresh + host heartbeat fresh + ping ok + ssh fail | `NO_ACTION` | always allowed |
 | `NETWORK_ONLY_ISSUE` | ping/ssh issue + out-of-band gpio fresh | `NO_ACTION` | always allowed |
 | `SENTINEL_ONLY_FAILURE` | gpio fresh + host heartbeat fresh + ssh ok + sentinel stale | `RESTART_SENTINEL` | enabled in Phase B+ |
-| `TELEMETRY_PIPELINE_FAILURE` | host heartbeat stale + sentinel stale + gpio fresh + ssh ok | `NO_ACTION` | always allowed |
+| `TELEMETRY_PIPELINE_FAILURE` | (host heartbeat stale + sentinel stale + gpio fresh + ssh ok) OR (host heartbeat fresh-but-not-progressing + sentinel stale + gpio fresh + ssh ok) | `NO_ACTION` | always allowed |
 | `HOST_DEGRADED` | gpio stale + host stale + ssh ok, and telemetry was previously healthy in same boot | `REMOTE_REBOOT` | disabled in Phase B (Phase C+) |
 | `FREEZE_SUSPECTED` | gpio stale + host stale + ssh fail + sustained cycles | `GPIO_REBOOT` | disabled through Phase C (Phase D+) |
 

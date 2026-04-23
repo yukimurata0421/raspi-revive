@@ -90,18 +90,8 @@ def _build_config(tmp_path: Path, *, phase_b: bool) -> ControllerConfig:
 
 
 def _write_fact_files(tmp_path: Path) -> None:
+    _write_host_heartbeat(tmp_path, seq=1)
     now_wall = datetime.now(timezone.utc).isoformat()
-    (tmp_path / "host-heartbeat.json").write_text(
-        json.dumps(
-            {
-                "boot_id": "boot-a",
-                "seq": 1,
-                "monotonic_sec": 1.0,
-                "wall_time": now_wall,
-            }
-        ),
-        encoding="utf-8",
-    )
     (tmp_path / "gpio-heartbeat.json").write_text(
         json.dumps(
             {
@@ -113,6 +103,21 @@ def _write_fact_files(tmp_path: Path) -> None:
     )
     (tmp_path / "stats.json").write_text("{}", encoding="utf-8")
     (tmp_path / "state.json").write_text("{}", encoding="utf-8")
+
+
+def _write_host_heartbeat(tmp_path: Path, *, seq: int) -> None:
+    now_wall = datetime.now(timezone.utc).isoformat()
+    (tmp_path / "host-heartbeat.json").write_text(
+        json.dumps(
+            {
+                "boot_id": "boot-a",
+                "seq": seq,
+                "monotonic_sec": float(seq),
+                "wall_time": now_wall,
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def _events(path: Path) -> list[dict]:
@@ -153,6 +158,7 @@ def test_events_emit_on_state_transition(tmp_path: Path, monkeypatch) -> None:
     stale_ts = datetime.now(timezone.utc).timestamp() - 120.0
     os.utime(config.paths.sentinel_stats_path, (stale_ts, stale_ts))
     os.utime(config.paths.sentinel_state_path, (stale_ts, stale_ts))
+    _write_host_heartbeat(tmp_path, seq=2)
     controller.run_cycle()
 
     transitions = [
