@@ -91,6 +91,22 @@ tail -n 200 /var/log/raspi-revive/events.jsonl
 
 - sentinel 以外の事象で restart が走る
 
+### 今後の B1 / B2 分割運用
+
+hard action を解禁する前に、Phase B を2つのゲートとして明示的に運用する。
+
+- B1: soft-action / observation validation
+  - sentinel-only 介入挙動と観測品質を確認する
+- B2: hard-action exclusion validation
+  - `enable_remote_reboot=false` のまま、
+  - 既知の false positive パターンが reboot へ昇格しないことを検証する
+
+B2 の最小固定シナリオ:
+
+- telemetry-only failure（`host heartbeat stale + sentinel stale` かつ `gpio fresh + ssh ok`）
+- post-boot reconciliation window（起動直後の hard action 再発火を抑止）
+- sentinel freshness jitter/flap（stale/fresh 揺れで reboot へ昇格しない）
+
 ## Phase C（REMOTE_REBOOT を監視時間帯で有効化）
 
 設定意図:
