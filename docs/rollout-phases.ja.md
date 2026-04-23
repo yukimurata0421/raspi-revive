@@ -91,6 +91,22 @@ tail -n 200 /var/log/raspi-revive/events.jsonl
 
 - sentinel 以外の事象で restart が走る
 
+### 今後の B1 / B2 分割運用
+
+hard action を解禁する前に、Phase B を2つのゲートとして明示的に運用する。
+
+- B1: soft-action / observation validation
+  - sentinel-only 介入挙動と観測品質を確認する
+- B2: hard-action exclusion validation
+  - `enable_remote_reboot=false` のまま、
+  - false positive パターンで reboot 候補が抑止されることを検証する
+
+B2 の最小固定シナリオ:
+
+- telemetry-only failure（`host heartbeat stale + sentinel stale` かつ `gpio fresh + ssh ok`）
+- post-boot reconciliation window（起動直後の hard action 再発火を抑止）
+- sentinel freshness jitter/flap（stale/fresh 揺れで reboot へ昇格しない）
+
 ## Phase C（REMOTE_REBOOT を監視時間帯で有効化）
 
 設定意図:
@@ -112,7 +128,7 @@ tail -n 200 /var/log/raspi-revive/events.jsonl
 - host-degraded の gate 成立時のみ remote reboot
 - reboot 後 verification が `boot_id` 変化で完了
 - cooldown/lockout で reboot loop を抑止
-- `host_heartbeat_progressing` を注意書きから gate に昇格させるか判断する
+- `host_heartbeat_progressing` を telemetry gate として適用し、scenario replay で検証する
 
 ロールバック条件:
 
@@ -135,6 +151,7 @@ tail -n 200 /var/log/raspi-revive/events.jsonl
 - freeze sustained 条件が揃った場合のみ gpio action
 - network-only / management-plane degraded で gpio action が出ない
 - 重故障反復でも lockout が健全に働く
+- telemetry pipeline の長期故障に対し、自動 reboot を有効化せず notify-only でエスカレーションできる
 
 ロールバック条件:
 

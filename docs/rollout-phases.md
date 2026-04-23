@@ -91,6 +91,22 @@ Rollback trigger:
 
 - restart actions fired during non-sentinel incidents
 
+### B1 / B2 Structure for Future Rollouts
+
+Use Phase B as two explicit gates before enabling any hard action:
+
+- B1: soft-action / observation validation
+  - focus on sentinel-only intervention behavior and telemetry quality.
+- B2: hard-action exclusion validation
+  - keep `enable_remote_reboot=false`,
+  - but verify that reboot candidates stay suppressed in known false-positive patterns.
+
+Minimum B2 counterexample set:
+
+- telemetry-only failure (`host heartbeat stale + sentinel stale` while `gpio fresh + ssh ok`)
+- post-boot reconciliation window (no immediate hard action replay)
+- sentinel freshness jitter/flap (stale/fresh oscillation without reboot escalation)
+
 ## Phase C (Enable Remote Reboot in Controlled Window)
 
 Config intent:
@@ -112,7 +128,7 @@ Exit criteria:
 - host-degraded incidents escalate to remote reboot only when gates match
 - post-action verification tracks reboot via `boot_id` change
 - lockout/cooldown stop repeated reboot loops
-- decide whether to promote `host_heartbeat_progressing` from note to enforced gate
+- enforce `host_heartbeat_progressing` as a telemetry gate and validate with scenario replay
 
 Rollback trigger:
 
@@ -135,6 +151,7 @@ Exit criteria:
 - freeze-suspected sustained incidents are required before gpio action
 - no gpio actions during network-only or management-plane degraded states
 - lockout behavior remains correct under repeated severe faults
+- telemetry-pipeline prolonged failures have a notify-only escalation path without enabling automatic reboot
 
 Rollback trigger:
 

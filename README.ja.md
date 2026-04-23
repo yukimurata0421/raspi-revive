@@ -13,11 +13,19 @@
 - `raspi-5-agent`: 事実のみを出力（host heartbeat、GPIO heartbeat、sentinel facts export）
 - `raspi-zero-controller`: 判定と介入を担当（state machine、段階的 action、cooldown/lockout、監査ログ）
 
+## このリポジトリで示すもの
+
+- Fact/Decision/Intervention 境界を分離した hardware-adjacent な制御ループ実装
+- observation-only から out-of-band recovery へ進む evidence gate 付き段階投入
+- 実機 Raspberry Pi での Phase A から Phase C までの運用検証記録
+
 ## 現在のスコープと未完成事項
 
 - 公開ベースラインの投入は `Phase A`（observation-first）からの段階適用を維持する。
 - 実運用は Phase A/B の証拠を経て、実機で `Phase C` まで進行している。
-- `Phase C` では `RESTART_SENTINEL` と `REMOTE_REBOOT` を有効化し、`GPIO_REBOOT` と `POWER_BUTTON_PULSE` は無効のまま。
+- `2026-04-23` の `REMOTE_REBOOT` 検証後、`06:55` と `06:58` JST に誤発火由来の再起動ループ事象を確認した。
+- このため現運用では `enable_remote_reboot=false` で封じ込めを継続し、`REMOTE_REBOOT` は「再有効化条件を満たした時のみ」戻す。
+- `Phase C` の設計意図は、`RESTART_SENTINEL` を基本介入とし、`REMOTE_REBOOT` は OS 側劣化を示す独立証拠がある場合に限定すること。
 - より強い介入は、低リスク phase の証拠が揃ってから段階的に有効化する。
 
 ## 設計品質宣言
@@ -40,14 +48,16 @@
 | `MANAGEMENT_PLANE_DEGRADED` | gpio fresh + host heartbeat fresh + ping ok + ssh fail | `NO_ACTION` | 常時許可 |
 | `NETWORK_ONLY_ISSUE` | ping/ssh 問題 + out-of-band gpio fresh | `NO_ACTION` | 常時許可 |
 | `SENTINEL_ONLY_FAILURE` | gpio fresh + host heartbeat fresh + ssh ok + sentinel stale | `RESTART_SENTINEL` | Phase B 以降で有効 |
-| `HOST_DEGRADED` | (gpio stale + host stale + ssh ok) または (host stale + sentinel stale + ssh ok) | `REMOTE_REBOOT` | Phase B では無効（Phase C 以降） |
-| `FREEZE_SUSPECTED` | gpio stale + host stale + ssh fail + 連続サイクル成立 | `GPIO_REBOOT` | Phase B では無効（Phase C 以降） |
+| `TELEMETRY_PIPELINE_FAILURE` | （host heartbeat stale + sentinel stale + gpio fresh + ssh ok）または（host heartbeat は fresh だが progressing しない + sentinel stale + gpio fresh + ssh ok） | `NO_ACTION` | 常時許可 |
+| `HOST_DEGRADED` | gpio stale + host stale + ssh ok かつ同一 boot 内で telemetry 正常履歴あり | `REMOTE_REBOOT` | Phase B では無効（Phase C 以降） |
+| `FREEZE_SUSPECTED` | gpio stale + host stale + ssh fail + 連続サイクル成立 | `GPIO_REBOOT` | Phase C まで無効（Phase D 以降） |
 
 ## Safety Gate
 
 - `cooldown_seconds` で連続介入を抑止。
 - `max_actions_per_window` と `lockout_window_seconds` で `LOCKOUT` へ遷移。
 - reboot 系 action は `boot_id` 変化で post-action verification。
+- reboot verification 後は post-boot reconciliation を経由し、telemetry が再収束するまで hard action を抑止。
 - Phase B の sentinel restart verification は freshness（`sentinel stats/state`）で判定し、reboot verification と分離する。
 - `maintenance_mode=true` で介入を停止（観測/判定/監査は継続）。
 - 同一 incident key への再介入を抑止。
@@ -115,6 +125,7 @@ python3 -m raspi_revive.scenario_replay_cli \
 - Phase A 実機チェック: [`docs/phase-a-validation-checklist.ja.md`](docs/phase-a-validation-checklist.ja.md)
 - Phase B 実機チェック: [`docs/phase-b-validation-checklist.ja.md`](docs/phase-b-validation-checklist.ja.md)
 - Phase B 運用ログ: [`docs/phase-b-operations-log.ja.md`](docs/phase-b-operations-log.ja.md)
+- Phase C 運用ログ: [`docs/phase-c-operations-log.ja.md`](docs/phase-c-operations-log.ja.md)
 - 設計判断: [`docs/engineering-decisions.ja.md`](docs/engineering-decisions.ja.md)
 - Notify Queue 設計: [`docs/notify-queue.ja.md`](docs/notify-queue.ja.md)
 - 公開向け運用ノート雛形: [`docs/ops-notes.ja.md`](docs/ops-notes.ja.md)

@@ -51,6 +51,7 @@ def build_config(tmp_path: Path) -> ControllerConfig:
             lockout_window_seconds=3600.0,
             max_actions_per_window=10,
             post_action_verification_wait_seconds=120.0,
+            post_boot_reconciliation_wait_seconds=120.0,
         ),
         paths=PathConfig(
             host_heartbeat_path=tmp_path / "host-heartbeat.json",

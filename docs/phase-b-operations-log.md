@@ -67,3 +67,7 @@ This document keeps an operational record for Phase B promotion and live validat
 
 - Phase B objectives were met: safe sentinel-restart enablement and no unsafe action firing.
 - Sentinel freshness jitter remains, so continued monitoring of `events.jsonl` and `actions.jsonl` is still required after Phase C promotion.
+
+## Note
+
+- Phase C records were moved to [`docs/phase-c-operations-log.md`](phase-c-operations-log.md) to keep this document focused on Phase B evidence only.

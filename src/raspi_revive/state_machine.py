@@ -11,6 +11,7 @@ from .models import (
     ControllerState,
     Decision,
     PendingVerification,
+    PostBootReconciliation,
     RecoveryAction,
 )
 
@@ -27,7 +28,8 @@ class StateMachine:
     ) -> Decision:
         now_ts = time.time()
         correlation_id = str(uuid.uuid4())
-        incident_key = self._incident_key(classification)
+        self._remember_boot_telemetry_health(runtime, classification, current_boot_id)
+        incident_key = self._incident_key(runtime, classification, current_boot_id)
         lockout_latch_event = self._update_lockout_latch(runtime, now_ts)
 
         if self._lockout_active(runtime, now_ts):
@@ -46,7 +48,16 @@ class StateMachine:
 
         if runtime.pending_verification is not None:
             if self._verification_satisfied(runtime, current_boot_id):
+                pending = runtime.pending_verification
                 runtime.pending_verification = None
+                runtime.post_boot_reconciliation = PostBootReconciliation(
+                    action=pending.action,
+                    boot_id=current_boot_id,
+                    created_ts=now_ts,
+                    deadline_ts=now_ts + self.config.guard.post_boot_reconciliation_wait_seconds,
+                    attempt_id=pending.attempt_id,
+                    correlation_id=pending.correlation_id,
+                )
             elif now_ts < runtime.pending_verification.deadline_ts:
                 return Decision(
                     classified_state=ControllerState.RECOVERY_IN_PROGRESS,
@@ -62,6 +73,37 @@ class StateMachine:
                 )
             else:
                 runtime.pending_verification = None
+
+        if runtime.post_boot_reconciliation is not None:
+            if self._telemetry_reconciled(classification):
+                runtime.post_boot_reconciliation = None
+            elif now_ts < runtime.post_boot_reconciliation.deadline_ts:
+                return Decision(
+                    classified_state=ControllerState.POST_BOOT_RECONCILIATION,
+                    chosen_action=RecoveryAction.NO_ACTION,
+                    reason="post-boot telemetry reconciliation in progress",
+                    evidence=classification.evidence,
+                    cooldown_active=False,
+                    lockout_active=False,
+                    maintenance_mode_active=self.config.mode.maintenance_mode,
+                    incident_key=incident_key,
+                    lockout_latch_event=lockout_latch_event,
+                    correlation_id=runtime.post_boot_reconciliation.correlation_id,
+                )
+            else:
+                runtime.post_boot_reconciliation = None
+                return Decision(
+                    classified_state=ControllerState.RECOVERY_PARTIAL,
+                    chosen_action=RecoveryAction.NO_ACTION,
+                    reason="post-boot telemetry did not reconcile before deadline",
+                    evidence=classification.evidence,
+                    cooldown_active=False,
+                    lockout_active=False,
+                    maintenance_mode_active=self.config.mode.maintenance_mode,
+                    incident_key=incident_key,
+                    lockout_latch_event=lockout_latch_event,
+                    correlation_id=correlation_id,
+                )
 
         if self.config.mode.maintenance_mode:
             return Decision(
@@ -107,8 +149,11 @@ class StateMachine:
         elif classification.state == ControllerState.HOST_DEGRADED:
             required = self.config.threshold.required_consecutive_host_degraded
             if self._count(runtime, classification.state) >= required:
-                action = RecoveryAction.REMOTE_REBOOT
-                reason = f"host degraded sustained for {required} cycles"
+                if current_boot_id is not None and runtime.last_telemetry_healthy_boot_id == current_boot_id:
+                    action = RecoveryAction.REMOTE_REBOOT
+                    reason = f"host degraded sustained for {required} cycles with telemetry previously healthy in same boot"
+                else:
+                    reason = "host degraded observed but telemetry baseline not established in this boot; hold reboot"
         elif classification.state == ControllerState.FREEZE_SUSPECTED:
             required = self.config.threshold.required_consecutive_freeze_suspected
             if self._count(runtime, classification.state) >= required:
@@ -166,13 +211,16 @@ class StateMachine:
             runtime.lockout_until_ts = now_ts + self.config.guard.lockout_window_seconds
 
         if action in (RecoveryAction.REMOTE_REBOOT, RecoveryAction.GPIO_REBOOT):
+            attempt_id = str(uuid.uuid4())
             runtime.pending_verification = PendingVerification(
                 action=action,
                 previous_boot_id=host_boot_id,
                 created_ts=now_ts,
                 deadline_ts=now_ts + self.config.guard.post_action_verification_wait_seconds,
+                attempt_id=attempt_id,
                 correlation_id=correlation_id,
             )
+            runtime.post_boot_reconciliation = None
         runtime.last_action_incident_key = incident_key
 
     def _cooldown_active(self, runtime: ControllerRuntimeState, now_ts: float) -> bool:
@@ -213,17 +261,52 @@ class StateMachine:
             return False
         return current_boot_id != pending.previous_boot_id
 
-    def _incident_key(self, classification: Classification) -> str:
+    def _incident_key(
+        self,
+        runtime: ControllerRuntimeState,
+        classification: Classification,
+        current_boot_id: str | None,
+    ) -> str:
         ev = classification.evidence
+        missing = [
+            name
+            for name, ok in (
+                ("gpio", ev.gpio_fresh),
+                ("host_hb", ev.host_heartbeat_fresh),
+                ("sentinel", ev.sentinel_fresh),
+                ("ping", ev.ping_ok),
+                ("ssh", ev.ssh_ok),
+            )
+            if not ok
+        ]
         parts = [
             classification.state.value,
+            f"boot={current_boot_id or 'unknown'}",
+            f"telemetry_boot={runtime.last_telemetry_healthy_boot_id or 'unknown'}",
             f"gpio={int(ev.gpio_fresh)}",
             f"host_hb={int(ev.host_heartbeat_fresh)}",
             f"sentinel={int(ev.sentinel_fresh)}",
             f"ping={int(ev.ping_ok)}",
             f"ssh={int(ev.ssh_ok)}",
+            f"missing={','.join(missing) if missing else 'none'}",
         ]
         return "|".join(parts)
+
+    def _remember_boot_telemetry_health(
+        self,
+        runtime: ControllerRuntimeState,
+        classification: Classification,
+        current_boot_id: str | None,
+    ) -> None:
+        if current_boot_id is None:
+            return
+        ev = classification.evidence
+        if ev.host_heartbeat_fresh and ev.host_heartbeat_progressing and ev.sentinel_fresh and ev.ssh_ok:
+            runtime.last_telemetry_healthy_boot_id = current_boot_id
+
+    def _telemetry_reconciled(self, classification: Classification) -> bool:
+        ev = classification.evidence
+        return ev.host_heartbeat_fresh and ev.host_heartbeat_progressing and ev.sentinel_fresh
 
     def _update_lockout_latch(self, runtime: ControllerRuntimeState, now_ts: float) -> str | None:
         active = self._lockout_active(runtime, now_ts)

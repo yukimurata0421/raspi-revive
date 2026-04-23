@@ -67,3 +67,7 @@
 
 - フェーズBとしての主要目的（sentinel restart 経路の安全な有効化と危険側アクション非発火）は達成
 - 一方で sentinel freshness 揺れは継続するため、フェーズC移行後も `events.jsonl` と `actions.jsonl` の継続監視を前提とする
+
+## 補足
+
+- フェーズCの記録は、フェーズB記録との混在を避けるため [`docs/phase-c-operations-log.ja.md`](phase-c-operations-log.ja.md) へ移管。

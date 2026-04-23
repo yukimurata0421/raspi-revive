@@ -105,3 +105,79 @@
 - In Phase B, sentinel-restart effectiveness was validated without opening unsafe actions.
 - At Phase C promotion time, no immediate unsafe action firing was observed.
 - For `inactive (dead)`, operational recurrence suppression is now established through the `raspi-sentinel` lite-side responsibility split.
+
+## 2026-04-23: Phase C false-trigger incident response and reboot policy hardening
+
+### Context
+
+- During Phase C operation on `2026-04-23`, a remote-reboot loop was observed twice in a short post-validation window (`T+0`, `T+~180s`).
+- Incident evidence showed:
+  - `REMOTE_REBOOT` executions were recorded in `actions.jsonl`.
+  - SSH reachability was still present at incident time.
+  - stale telemetry (`host heartbeat` + `sentinel`) could be classified as `HOST_DEGRADED` under the prior rule.
+- This conflicted with the architecture intent: strong interventions must be tied to strong, causally relevant evidence.
+
+### Decisions
+
+1. Separate telemetry pipeline failure from host degradation.
+   - Added `TELEMETRY_PIPELINE_FAILURE` and removed telemetry-only stale paths from `HOST_DEGRADED`.
+   - Rationale: telemetry/exporter faults must not directly trigger host reboot.
+2. Require reboot causality proof before `REMOTE_REBOOT`.
+   - `HOST_DEGRADED` remote reboot now requires:
+     - independent target-plane evidence (`gpio stale + host heartbeat stale + ssh ok`),
+     - and same-boot telemetry baseline previously healthy.
+   - Rationale: avoid acting on missing telemetry alone.
+3. Extend post-reboot suppression into reconciliation.
+   - Added `POST_BOOT_RECONCILIATION` and `RECOVERY_PARTIAL`.
+   - Added `post_boot_reconciliation_wait_seconds`.
+   - Rationale: avoid replaying strong action before telemetry convergence after boot change.
+4. Keep enablement as an operator-controlled gate.
+   - Immediate containment used `enable_remote_reboot=false`.
+   - Re-enable was done only after hardening deployment and regression verification.
+
+### Evidence and Verification
+
+- RCA and runtime evidence are logged in:
+  - `docs/phase-c-operations-log.md`
+  - incident entries recorded as relative timings (`T+0`, `T+~180s`) in public docs
+- Regression checks after hardening:
+  - `pytest -q` passed
+  - `ruff check` passed
+- Runtime re-enable evidence:
+  - `phase_changed: PHASE_B -> PHASE_C`
+  - `action_gate_changed` with `enable_remote_reboot=1`
+
+## 2026-04-23: Promote negative validation as a first-class phase gate
+
+### Context
+
+- The key process gap was not "Phase B was skipped."
+- The gap was that phase criteria were weighted toward positive checks ("works when intended") and did not explicitly gate negative checks ("does not fire when it must stay suppressed").
+- This should be documented as phase design policy, not incident narrative.
+
+### Decision
+
+1. Require two-direction validation before hard-action enablement.
+   - Positive validation:
+     - if true `HOST_DEGRADED`, can `REMOTE_REBOOT` execute under control.
+   - Negative validation:
+     - telemetry-only failure, post-boot transient, and freshness jitter must not trigger `REMOTE_REBOOT`.
+2. Split future Phase B into two explicit subphases.
+   - B1: soft-action and observation validation.
+   - B2: hard-action exclusion validation with `enable_remote_reboot=false`.
+3. Keep a minimal fixed B2 counterexample set.
+   - telemetry-only failure
+   - post-boot reconciliation window
+   - sentinel freshness jitter/flap
+
+## Phase A-C decision completeness
+
+The engineering record now explicitly includes:
+
+1. Phase A: GPIO observation-only bring-up, wiring constraints, runtime stabilization.
+2. Phase B: sentinel-only intervention boundary and safe promotion evidence.
+3. Phase C:
+   - initial promotion and runtime verification,
+   - remote reboot execution validation,
+   - false-trigger incident response,
+   - policy hardening and controlled re-enable criteria.
