@@ -144,6 +144,49 @@
 
 - 封じ込め解除は自動ではなく、RCA と実装改修、回帰確認を満たした後の明示判断で実施した。
 
+## 2026-04-23 (JST) sentinel facts 鮮度フラップ分析と閾値調整
+
+### 対象
+
+- Controller host: `pi5-guard`
+- 設定ファイル: `/etc/raspi-revive/controller.toml`
+- 実行ログ:
+  - `/var/log/raspi-revive/observations.jsonl`
+  - `/var/log/raspi-revive/decisions.jsonl`
+  - `/var/log/raspi-revive/actions.jsonl`
+  - `/var/log/raspi-revive/events.jsonl`
+- sentinel 実行周期の根拠:
+  - `/etc/systemd/system/raspi-sentinel.timer`
+  - `/etc/raspi-sentinel/config.toml`
+
+### 調査結果
+
+- `raspi-revive` 側の stale 閾値は以下だった:
+  - `sentinel_stats_stale_sec = 30.0`
+  - `sentinel_state_stale_sec = 30.0`
+- `raspi-sentinel` は `OnUnitActiveSec=30s` に jitter（`RandomizedDelaySec=5s`, `AccuracySec=15s`）が重なり、実測開始間隔は主に `35-45s` 帯だった。
+- `2026-04-23 09:00 JST` 以降の調査窓では:
+  - `SENTINEL_ONLY_FAILURE` が `sentinel facts stale while host/gpio/ssh indicate OS alive` 理由で繰り返し発生。
+  - `REMOTE_REBOOT` / `RESTART_SENTINEL` は発火せず（`NO_ACTION`のみ）、介入暴走ではなく鮮度判定のフラップであることを確認。
+- リモート側とミラー側の mtime を照合し、ミラー遅延が主因ではないことを確認。支配要因は「閾値と実周期のミスマッチ」。
+
+### 適用変更
+
+- `pi5-guard` 上の `/etc/raspi-revive/controller.toml` を更新:
+  - `sentinel_stats_stale_sec = 60.0`
+  - `sentinel_state_stale_sec = 60.0`
+- `raspi-revive-controller.service` を再起動。
+- `2026-04-23 18:02 JST` 時点で service は `active (running)` を確認。
+
+### 変更直後の短期検証
+
+- 観測窓: `2026-04-23 18:02:35` から `18:04:25 JST`（約110秒）
+- 結果:
+  - `observations=10`
+  - 全件 `HEALTHY`
+  - `sentinel_stats_fresh=false` / `sentinel_state_fresh=false`: `0`
+- これは長時間ソークの代替ではないが、少なくとも直後窓では今回のフラップ起点が解消していることを示す。
+
 ## Phase A-C 記録の充足確認
 
 この運用ログと関連文書により、次を明示的に追跡できる状態になった。
