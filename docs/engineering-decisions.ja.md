@@ -200,6 +200,21 @@
   - `gpiod` 実装互換ギャップは成立し、修正後に再現しないことを確認。
   - pin mapping / 設定整合後、短窓で `gpio_fresh=100%` を確認。
 
+### 関連する閾値の引き締め
+
+- GPIO観測の安定化に合わせて、`gpio_heartbeat_stale_sec` は段階的に引き締めた。
+  - 初期運用値: `120.0`（観測安定性優先）
+  - 現行運用値: `10.0`（実測 `age ~0.8s`, `max ~1.7s` に対して十分なマージン）
+- 実機設定バックアップの確認結果:
+  - `2026-04-20 05:27 JST` 時点バックアップでは `120.0`
+  - `2026-04-22 11:01 JST` 時点バックアップでは `10.0`
+  - よって引き締め反映は `2026-04-22`（この前後）に完了したと判断できる。
+- リポジトリ上の phase 設定は全phase共通で `10.0` を採用している:
+  - `targets/raspi-zero-controller/config/phases/controller.phase-a.toml`
+  - `targets/raspi-zero-controller/config/phases/controller.phase-b.toml`
+  - `targets/raspi-zero-controller/config/phases/controller.phase-c.toml`
+  - `targets/raspi-zero-controller/config/phases/controller.phase-d.toml`
+
 ## Phase A-C の記録充足性
 
 設計判断の記録は、以下を明示的に含む状態に更新した。

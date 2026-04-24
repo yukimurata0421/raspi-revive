@@ -203,6 +203,21 @@
   - `gpiod` compatibility defects were reproducible and then removed by implementation change.
   - After wiring/config realignment, short-window `gpio_fresh` returned to `100%`.
 
+### Related Threshold Tightening
+
+- As GPIO observation stabilized, `gpio_heartbeat_stale_sec` was tightened in stages.
+  - initial operational value: `120.0` (stability-first)
+  - current operational value: `10.0` (with measured `age ~0.8s`, `max ~1.7s`, still with margin)
+- Runtime backup evidence on the controller host shows:
+  - `120.0` was still present at `2026-04-20 05:27 JST`,
+  - `10.0` was present at `2026-04-22 11:01 JST`.
+  - Therefore the tightening was completed around `2026-04-22`.
+- Repository phase configs use `10.0` consistently across all phases:
+  - `targets/raspi-zero-controller/config/phases/controller.phase-a.toml`
+  - `targets/raspi-zero-controller/config/phases/controller.phase-b.toml`
+  - `targets/raspi-zero-controller/config/phases/controller.phase-c.toml`
+  - `targets/raspi-zero-controller/config/phases/controller.phase-d.toml`
+
 ## Phase A-C decision completeness
 
 The engineering record now explicitly includes:

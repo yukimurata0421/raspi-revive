@@ -241,6 +241,17 @@ This document keeps an operational record for Phase C runtime verification and i
    - edge timestamp progresses.
 3. Treat post-change transition windows separately from stable-window metrics.
 
+### Related Threshold Tightening
+
+- With GPIO observation stabilized, `gpio_heartbeat_stale_sec` is operated under a tightened policy:
+  - initial value: `120.0` (stability-first during early observation)
+  - current value: `10.0` (still with margin vs measured `age ~0.8s`, `max ~1.7s`)
+- Runtime backup checkpoints on the controller host show:
+  - `120.0` at `2026-04-20 05:27 JST`
+  - `10.0` at `2026-04-22 11:01 JST`
+  - indicating the tightening was completed around `2026-04-22`.
+- Repository phase configs already use `10.0` consistently across all phases.
+
 ## Phase A-C Coverage Check
 
 This log plus linked docs now explicitly cover:
