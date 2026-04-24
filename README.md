@@ -20,6 +20,10 @@ Role split:
 - `Phase C` enables `RESTART_SENTINEL` and `REMOTE_REBOOT`; `GPIO_REBOOT` and `POWER_BUTTON_PULSE` stay disabled.
 - Stronger interventions remain staged and must be enabled only after evidence from lower-risk phases.
 
+Operational records:
+- [`docs/phase-c-operations-log.md`](docs/phase-c-operations-log.md) includes false-trigger hardening (`2026-04-23`) and GPIO observer compatibility/wiring verification (`2026-04-24`).
+- [`docs/phase-b-operations-log.md`](docs/phase-b-operations-log.md) tracks staged rollout evidence before Phase C promotion.
+
 ## Design Quality Declaration
 
 - Correctness of `Fact / Decision / Intervention` boundary is treated as a first-class quality target.

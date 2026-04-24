@@ -27,6 +27,9 @@ Each scenario must use the same record shape:
 | `SCN-008` | Trigger repeated actions to budget limit | action count reaches configured max in lockout window | `LOCKOUT` | `NO_ACTION` after lockout | any intervention during lockout | lockout latch `entered/still_active/cleared` appears | stop-loop safety |
 | `SCN-009` | Enable maintenance mode during active failure | classification may indicate fault, mode blocks action | classified state unchanged, action gate suppressed | `NO_ACTION` | all interventions | audit still records observation/decision | maintenance safety |
 | `SCN-010` | SSH management path degraded only | gpio fresh + host hb fresh + ping ok + ssh fail | `MANAGEMENT_PLANE_DEGRADED` | `NO_ACTION` | `RESTART_SENTINEL`, `REMOTE_REBOOT`, `GPIO_REBOOT`, `POWER_BUTTON_PULSE` | no intervention while SSH path recovers | keeps management-plane issues distinct |
+| `SCN-011` | Telemetry-only degradation window | gpio fresh + host hb stale + sentinel stale + ssh ok | `HOST_DEGRADED` | `NO_ACTION` (below sustained threshold) | `REMOTE_REBOOT`, `GPIO_REBOOT`, `POWER_BUTTON_PULSE` | no hard action in short telemetry-only window | B2 counterexample for immediate hard-action suppression |
+| `SCN-012` | Post-action verification window | action fired once, pending verification active, `boot_id` unchanged | `RECOVERY_IN_PROGRESS` | `NO_ACTION` during verification window | `RESTART_SENTINEL`, `REMOTE_REBOOT`, `GPIO_REBOOT`, `POWER_BUTTON_PULSE` | no second intervention before verification completes | B2 counterexample for post-boot reconciliation window |
+| `SCN-013` | Sentinel freshness jitter/flap | single-cycle sentinel stale separated by healthy cycle | `SENTINEL_ONLY_FAILURE` / `HEALTHY` alternating | `NO_ACTION` | `RESTART_SENTINEL`, `REMOTE_REBOOT`, `GPIO_REBOOT`, `POWER_BUTTON_PULSE` | no intervention on non-consecutive flap | B2 counterexample for jitter-driven false escalation |
 
 ## Execution Notes
 

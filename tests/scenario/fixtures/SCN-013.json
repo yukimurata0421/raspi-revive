@@ -1,0 +1,102 @@
+{
+  "scenario_id": "SCN-013",
+  "injected_failure": "sentinel freshness jitter/flap",
+  "expected_evidence": "single-cycle sentinel stale events separated by healthy cycles",
+  "expected_state": "SENTINEL_ONLY_FAILURE",
+  "expected_action": "NO_ACTION",
+  "forbidden_action": "RESTART_SENTINEL/REMOTE_REBOOT/GPIO_REBOOT/POWER_BUTTON_PULSE for non-consecutive flaps",
+  "recovery_verification": "no intervention on non-consecutive sentinel stale observations",
+  "notes": "B2 counterexample: jitter/flap should not trigger intervention without sustained evidence",
+  "threshold_overrides": {
+    "required_consecutive_sentinel_failure": 2
+  },
+  "steps": [
+    {
+      "step_id": "SCN-013-STEP-1",
+      "expected_state": "SENTINEL_ONLY_FAILURE",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
+      "observation": {
+        "ts": 1000.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:00+00:00",
+        "host_heartbeat_age_sec": 1.0,
+        "host_heartbeat_fresh": true,
+        "host_heartbeat_progressing": true,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 120.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 1.0,
+        "sentinel_state_fresh": true,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    },
+    {
+      "step_id": "SCN-013-STEP-2",
+      "expected_state": "HEALTHY",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
+      "observation": {
+        "ts": 1010.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:10+00:00",
+        "host_heartbeat_age_sec": 1.0,
+        "host_heartbeat_fresh": true,
+        "host_heartbeat_progressing": true,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 1.0,
+        "sentinel_stats_fresh": true,
+        "sentinel_state_age_sec": 1.0,
+        "sentinel_state_fresh": true,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    },
+    {
+      "step_id": "SCN-013-STEP-3",
+      "expected_state": "SENTINEL_ONLY_FAILURE",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
+      "observation": {
+        "ts": 1020.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:20+00:00",
+        "host_heartbeat_age_sec": 1.0,
+        "host_heartbeat_fresh": true,
+        "host_heartbeat_progressing": true,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 120.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 1.0,
+        "sentinel_state_fresh": true,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    }
+  ]
+}
