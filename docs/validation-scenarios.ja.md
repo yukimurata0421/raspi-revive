@@ -27,6 +27,9 @@
 | `SCN-008` | action 予算上限まで到達させる | lockout window 内の action 回数上限到達 | `LOCKOUT` | lockout 後は `NO_ACTION` | lockout 中のすべての介入 | `entered/still_active/cleared` を確認 | loop 停止性 |
 | `SCN-009` | active failure 中に maintenance mode 有効化 | 分類は故障でも mode が action を遮断 | 分類状態は保持、action gate は抑止 | `NO_ACTION` | すべての介入 | 観測/判定/audit が継続 | メンテ安全性 |
 | `SCN-010` | SSH 管理経路のみ劣化 | gpio fresh + host hb fresh + ping ok + ssh fail | `MANAGEMENT_PLANE_DEGRADED` | `NO_ACTION` | `RESTART_SENTINEL`, `REMOTE_REBOOT`, `GPIO_REBOOT`, `POWER_BUTTON_PULSE` | SSH 経路復帰まで介入しない | 管理プレーン障害を別分類で保持 |
+| `SCN-011` | telemetry-only 劣化窓 | gpio fresh + host hb stale + sentinel stale + ssh ok | `HOST_DEGRADED` | `NO_ACTION`（連続閾値未満） | `REMOTE_REBOOT`, `GPIO_REBOOT`, `POWER_BUTTON_PULSE` | telemetry-only 短窓で hard action しない | B2反証: 即時hard-action抑止 |
+| `SCN-012` | post-action verification 窓 | 1回介入後に pending verification 継続、`boot_id` 未変化 | `RECOVERY_IN_PROGRESS` | verification中は `NO_ACTION` | `RESTART_SENTINEL`, `REMOTE_REBOOT`, `GPIO_REBOOT`, `POWER_BUTTON_PULSE` | verification 完了前に再介入しない | B2反証: post-boot reconciliation 窓 |
+| `SCN-013` | sentinel freshness jitter/flap | 単発 stale と healthy が交互 | `SENTINEL_ONLY_FAILURE` / `HEALTHY` 交互 | `NO_ACTION` | `RESTART_SENTINEL`, `REMOTE_REBOOT`, `GPIO_REBOOT`, `POWER_BUTTON_PULSE` | 非連続 flap では介入しない | B2反証: jitter由来の誤エスカレーション抑止 |
 
 ## 実行メモ
 

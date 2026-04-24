@@ -71,7 +71,9 @@ def resolve_line(pin: int, chip_hint: str | None = None) -> tuple[str, int] | No
         except ValueError:
             continue
     if chip_hint:
-        # Fallback for environments without gpiofind; Pi GPIO offsets map to BCM IDs.
+        # Fallback for environments without gpiofind.
+        # This assumes Pi-family mapping where BCM ID equals line offset on the selected chip.
+        # Verify on future hardware revisions where GPIO chip topology may differ.
         return chip_hint, pin
     return None
 
@@ -86,6 +88,8 @@ def configure_input(pin: int, pull: str, backend: str, gpiod_chip: str) -> bool:
             return False
         chip, offset = resolved
         bias_flag = {"down": "pull-down", "up": "pull-up", "off": "disabled"}[pull]
+        # Success here means gpioget returned rc=0, which confirms the line can be
+        # requested with the desired chip/offset/bias in this runtime environment.
         return run_capture(["gpioget", "-c", chip, "--bias", bias_flag, "--numeric", str(offset)]) is not None
     return False
 

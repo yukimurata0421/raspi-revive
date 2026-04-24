@@ -97,8 +97,8 @@ def build_config(tmp_path: Path) -> ControllerConfig:
 def test_all_json_fixtures_replay(tmp_path: Path) -> None:
     config = build_config(tmp_path)
     scenarios = load_scenario_definitions_from_dir(FIXTURE_DIR)
-    assert len(scenarios) >= 10
-    assert any(item.scenario_id == "SCN-010" for item in scenarios)
+    assert len(scenarios) >= 13
+    assert any(item.scenario_id == "SCN-013" for item in scenarios)
 
     for scenario in scenarios:
         results = replay_definition(config, scenario)
