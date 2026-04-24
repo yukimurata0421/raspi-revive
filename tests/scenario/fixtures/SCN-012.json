@@ -1,0 +1,100 @@
+{
+  "scenario_id": "SCN-012",
+  "injected_failure": "post-reboot verification window",
+  "expected_evidence": "action triggered once, then pending verification suppresses new interventions",
+  "expected_state": "RECOVERY_IN_PROGRESS",
+  "expected_action": "NO_ACTION",
+  "forbidden_action": "RESTART_SENTINEL/REMOTE_REBOOT/GPIO_REBOOT/POWER_BUTTON_PULSE during verification window",
+  "recovery_verification": "pending verification blocks all non-observation actions until boot_id changes",
+  "notes": "B2 counterexample: post-action reconciliation window should suppress additional interventions",
+  "threshold_overrides": {
+    "required_consecutive_host_degraded": 1
+  },
+  "steps": [
+    {
+      "step_id": "SCN-012-STEP-1",
+      "expected_state": "HOST_DEGRADED",
+      "expected_action": "REMOTE_REBOOT",
+      "forbidden_actions": [
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
+      "observation": {
+        "ts": 1000.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:00+00:00",
+        "host_heartbeat_age_sec": 120.0,
+        "host_heartbeat_fresh": false,
+        "host_heartbeat_progressing": false,
+        "gpio_heartbeat_age_sec": 120.0,
+        "gpio_heartbeat_fresh": false,
+        "sentinel_stats_age_sec": 1.0,
+        "sentinel_stats_fresh": true,
+        "sentinel_state_age_sec": 1.0,
+        "sentinel_state_fresh": true,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    },
+    {
+      "step_id": "SCN-012-STEP-2",
+      "expected_state": "RECOVERY_IN_PROGRESS",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
+      "observation": {
+        "ts": 1010.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:10+00:00",
+        "host_heartbeat_age_sec": 130.0,
+        "host_heartbeat_fresh": false,
+        "host_heartbeat_progressing": false,
+        "gpio_heartbeat_age_sec": 130.0,
+        "gpio_heartbeat_fresh": false,
+        "sentinel_stats_age_sec": 130.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 130.0,
+        "sentinel_state_fresh": false,
+        "ping_ok": false,
+        "ssh_ok": false
+      }
+    },
+    {
+      "step_id": "SCN-012-STEP-3",
+      "expected_state": "RECOVERY_IN_PROGRESS",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": [
+        "RESTART_SENTINEL",
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
+      "observation": {
+        "ts": 1020.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:20+00:00",
+        "host_heartbeat_age_sec": 130.0,
+        "host_heartbeat_fresh": false,
+        "host_heartbeat_progressing": false,
+        "gpio_heartbeat_age_sec": 130.0,
+        "gpio_heartbeat_fresh": false,
+        "sentinel_stats_age_sec": 130.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 130.0,
+        "sentinel_state_fresh": false,
+        "ping_ok": false,
+        "ssh_ok": false
+      }
+    }
+  ]
+}

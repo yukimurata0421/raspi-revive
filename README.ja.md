@@ -20,6 +20,10 @@
 - `Phase C` では `RESTART_SENTINEL` と `REMOTE_REBOOT` を有効化し、`GPIO_REBOOT` と `POWER_BUTTON_PULSE` は無効のまま。
 - より強い介入は、低リスク phase の証拠が揃ってから段階的に有効化する。
 
+運用記録:
+- [`docs/phase-c-operations-log.ja.md`](docs/phase-c-operations-log.ja.md): 誤発火ハードニング（`2026-04-23`）と GPIO observer 互換性/配線切り分け（`2026-04-24`）を記録。
+- [`docs/phase-b-operations-log.ja.md`](docs/phase-b-operations-log.ja.md): Phase C 昇格前の段階投入エビデンスを記録。
+
 ## 設計品質宣言
 
 - `Fact / Decision / Intervention` 境界の正しさを第一級の品質目標として扱う。

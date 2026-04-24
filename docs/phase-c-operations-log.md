@@ -251,6 +251,11 @@ This document keeps an operational record for Phase C runtime verification and i
   - `10.0` at `2026-04-22 11:01 JST`
   - indicating the tightening was completed around `2026-04-22`.
 - Repository phase configs already use `10.0` consistently across all phases.
+- Rolling 24h soak snapshot (as of `2026-04-24 09:05 JST`):
+  - window: `2026-04-23 09:05 JST` to `2026-04-24 09:05 JST`
+  - `samples=7907`, `gpio_fresh=true=3709`, `false=4198`, `ratio=46.91%`
+  - `age_mean=16.913s`, `p50=10.847s`, `p95=53.583s`, `max=238.386s`
+  - note: this 24h window includes pre-fix and transition samples; completion judgment should be based on stable-window evidence in addition to rolling-window metrics.
 
 ## Phase A-C Coverage Check
 

@@ -1,0 +1,71 @@
+{
+  "scenario_id": "SCN-011",
+  "injected_failure": "telemetry-only degradation without out-of-band failure",
+  "expected_evidence": "gpio fresh + host heartbeat stale + sentinel stale + ssh ok",
+  "expected_state": "HOST_DEGRADED",
+  "expected_action": "NO_ACTION",
+  "forbidden_action": "REMOTE_REBOOT/GPIO_REBOOT/POWER_BUTTON_PULSE",
+  "recovery_verification": "no hard action during short telemetry-only window",
+  "notes": "B2 counterexample: telemetry-only degradation should not trigger immediate hard action",
+  "threshold_overrides": {
+    "required_consecutive_host_degraded": 3
+  },
+  "steps": [
+    {
+      "step_id": "SCN-011-STEP-1",
+      "expected_state": "HOST_DEGRADED",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": [
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
+      "observation": {
+        "ts": 1000.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:00+00:00",
+        "host_heartbeat_age_sec": 120.0,
+        "host_heartbeat_fresh": false,
+        "host_heartbeat_progressing": false,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 120.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 120.0,
+        "sentinel_state_fresh": false,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    },
+    {
+      "step_id": "SCN-011-STEP-2",
+      "expected_state": "HOST_DEGRADED",
+      "expected_action": "NO_ACTION",
+      "forbidden_actions": [
+        "REMOTE_REBOOT",
+        "GPIO_REBOOT",
+        "POWER_BUTTON_PULSE"
+      ],
+      "observation": {
+        "ts": 1010.0,
+        "host_boot_id": "boot-a",
+        "host_seq": 1,
+        "host_monotonic_sec": 100.0,
+        "host_wall_time": "2026-04-19T00:00:10+00:00",
+        "host_heartbeat_age_sec": 130.0,
+        "host_heartbeat_fresh": false,
+        "host_heartbeat_progressing": false,
+        "gpio_heartbeat_age_sec": 1.0,
+        "gpio_heartbeat_fresh": true,
+        "sentinel_stats_age_sec": 130.0,
+        "sentinel_stats_fresh": false,
+        "sentinel_state_age_sec": 130.0,
+        "sentinel_state_fresh": false,
+        "ping_ok": true,
+        "ssh_ok": true
+      }
+    }
+  ]
+}
