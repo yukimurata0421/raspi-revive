@@ -29,6 +29,20 @@ jobs:
       - name: Python compile check
         run: python -m py_compile $(find src targets tests scripts -name '*.py' -type f)
 
+      - name: Preflight import check
+        run: |
+          PYTHONPATH=src python3 -c "
+          from raspi_revive.controller import ReviveController
+          from raspi_revive.cli import main
+          from raspi_revive.models import (
+              ControllerRuntimeState,
+              ControllerState,
+              RecoveryAction,
+              HEARTBEAT_FIELDS,
+          )
+          print('preflight-ok')
+          "
+
       - name: Unit and scenario tests
         run: pytest -q
 

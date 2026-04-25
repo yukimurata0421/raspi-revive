@@ -2,14 +2,18 @@
 Description=raspi-revive out-of-band recovery controller
 After=network-online.target raspi-revive-gpio-observer.service
 Wants=network-online.target raspi-revive-gpio-observer.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/raspi-revive
-ExecStart=/usr/bin/python3 /opt/raspi-revive/targets/raspi-zero-controller/scripts/run_controller.py --config /etc/raspi-revive/controller.toml
+WorkingDirectory=/opt/raspi-revive/current
+ExecStartPre=/usr/bin/python3 /opt/raspi-revive/current/targets/raspi-zero-controller/scripts/preflight_runtime_imports.py --src-dir /opt/raspi-revive/current/src --config /etc/raspi-revive/controller.toml --check-runtime-writable --instantiate-controller
+ExecStart=/usr/bin/python3 /opt/raspi-revive/current/targets/raspi-zero-controller/scripts/run_controller.py --config /etc/raspi-revive/controller.toml
 Restart=always
 RestartSec=5
+RestartPreventExitStatus=75
 
 [Install]
 WantedBy=multi-user.target

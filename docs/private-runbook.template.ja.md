@@ -69,6 +69,8 @@
 
 ```bash
 # 例
+python3 /opt/raspi-revive/current/targets/raspi-zero-controller/scripts/preflight_runtime_imports.py --src-dir /opt/raspi-revive/current/src --config /etc/raspi-revive/controller.toml --check-runtime-writable --instantiate-controller
+./scripts/deploy_controller_release.sh
 systemctl status <controller-service> --no-pager
 journalctl -u <controller-service> -n 200 --no-pager
 ```
