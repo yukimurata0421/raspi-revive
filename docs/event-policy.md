@@ -26,12 +26,18 @@ This policy defines roles for append-only runtime logs.
 - `sentinel_restart_completed`
 - `sentinel_restart_verified`
 - `sentinel_restart_failed`
+- `controller_state_write_failed`
+- `controller_state_write_stale`
 
 ## What Must Not Go Into `events.jsonl`
 
 - periodic HEALTHY heartbeat events
 - per-cycle observation snapshots already present in `observations.jsonl`
 - per-cycle action suppression details already present in `actions.jsonl`
+
+`controller_state_write_stale` is treated as a lifecycle anomaly event, not as
+decision input. It may be emitted on startup when previously persisted state is
+already old.
 
 ## How To Read A Quiet Phase A Window
 

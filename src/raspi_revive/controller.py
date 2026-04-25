@@ -3,16 +3,20 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from . import __version__
 from .audit import AuditLogger
 from .collector import ObservationCollector
 from .config import ControllerConfig
 from .evaluator import classify
 from .executor import ActionExecutor
-from .models import ControllerRuntimeState, Decision, RecoveryAction
+from .models import ControllerRuntimeState, Decision, HEARTBEAT_FIELDS, RecoveryAction
 from .notifier import NotifyDispatcher
 from .probes import file_age_seconds
 from .state_machine import StateMachine
 from .state_store import load_runtime_state, save_runtime_state
+
+STATE_HEARTBEAT_WRITE_INTERVAL_SEC = 30.0
+STATE_STALE_WARNING_THRESHOLD_SEC = STATE_HEARTBEAT_WRITE_INTERVAL_SEC * 3.0
 
 
 class ReviveController:
@@ -24,6 +28,7 @@ class ReviveController:
         self._audit = AuditLogger(config.paths)
         self._notifier = NotifyDispatcher(config)
         self._runtime_state = load_runtime_state(config.paths.controller_state_path)
+        self._runtime_state.code_version = __version__
         # Force one baseline write after startup, then track actual persisted value.
         self._last_persisted_state: dict[str, Any] | None = None
         self._emit_startup_events(time.time())
@@ -35,6 +40,19 @@ class ReviveController:
     def run_cycle(self) -> None:
         obs = self._collector.collect(self._runtime_state.previous_host_seq)
         cycle_ts = obs.ts
+        # Intentionally record stale state-file age even on the first cycle after
+        # a restart if previously persisted state is old.
+        if self._runtime_state.last_state_write_ts is not None:
+            state_write_age = cycle_ts - self._runtime_state.last_state_write_ts
+            if state_write_age > STATE_STALE_WARNING_THRESHOLD_SEC:
+                self._audit.log_event(
+                    ts=cycle_ts,
+                    event="controller_state_write_stale",
+                    detail={
+                        "age_seconds": state_write_age,
+                        "threshold_seconds": STATE_STALE_WARNING_THRESHOLD_SEC,
+                    },
+                )
         previous_state = self._runtime_state.current_state.value
         classification = classify(obs)
         decision = self._state_machine.decide(
@@ -143,10 +161,43 @@ class ReviveController:
         self._runtime_state.previous_host_boot_id = obs.host_boot_id
         self._runtime_state.previous_host_seq = obs.host_seq
         self._notifier.handle_cycle(decision, obs)
-        current_state = self._runtime_state.to_dict()
-        if not self._config.paths.controller_state_path.exists() or self._last_persisted_state != current_state:
-            save_runtime_state(self._config.paths.controller_state_path, self._runtime_state)
-            self._last_persisted_state = current_state
+        self._runtime_state.last_loop_ts = cycle_ts
+        self._runtime_state.last_observation_ts = obs.ts
+
+        current_structural = self._runtime_state.to_structural_dict()
+        last_structural = (
+            None
+            if self._last_persisted_state is None
+            else {
+                key: value
+                for key, value in self._last_persisted_state.items()
+                if key not in HEARTBEAT_FIELDS
+            }
+        )
+        structural_changed = current_structural != last_structural
+        file_missing = not self._config.paths.controller_state_path.exists()
+        last_write = self._runtime_state.last_state_write_ts
+        heartbeat_due = (
+            last_write is None
+            or (cycle_ts - last_write) >= STATE_HEARTBEAT_WRITE_INTERVAL_SEC
+        )
+        if structural_changed or file_missing or heartbeat_due:
+            self._runtime_state.last_state_write_ts = cycle_ts
+            try:
+                save_runtime_state(self._config.paths.controller_state_path, self._runtime_state)
+                self._last_persisted_state = self._runtime_state.to_dict()
+            except OSError as exc:
+                self._audit.log_event(
+                    ts=cycle_ts,
+                    event="controller_state_write_failed",
+                    detail={
+                        "error": str(exc),
+                        "path": str(self._config.paths.controller_state_path),
+                        "structural_changed": structural_changed,
+                        "heartbeat_due": heartbeat_due,
+                    },
+                    correlation_id=decision.correlation_id,
+                )
 
     def _emit_startup_events(self, ts: float) -> None:
         phase = self._phase_label()

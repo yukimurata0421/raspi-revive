@@ -269,3 +269,17 @@ This log plus linked docs now explicitly cover:
   - false-trigger incident and RCA,
   - logic hardening,
   - controlled re-enable decision and evidence.
+
+## Record: 2026-04-25 (JST) Controller State Persistence Freshness Summary
+
+### Summary
+
+- Added controller runtime-state heartbeat persistence to avoid stale state snapshots during steady healthy loops.
+- Separated structural-vs-heartbeat persistence comparison to keep write semantics explicit.
+- Added state persistence anomaly events (`controller_state_write_failed`, `controller_state_write_stale`).
+- Added controller service start-limit guard to bound rapid restart loops.
+
+### Validation
+
+- Added dedicated persistence regression tests.
+- Verified heartbeat-driven state timestamp progression after deployment.

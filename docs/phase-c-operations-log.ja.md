@@ -298,3 +298,19 @@
   - 誤発火事象とRCA、
   - ロジックハードニング、
   - 条件付き再有効化の実施証跡。
+
+## 2026-04-25 (JST) controller-state 鮮度改善の概要
+
+### 概要
+
+- `HEALTHY` 連続時の state 停滞を避けるため、runtime state にハートビート保存を追加。
+- 構造比較とハートビート比較を明示的に分離し、保存条件を明確化。
+- state 永続化異常のイベントを追加:
+  - `controller_state_write_failed`
+  - `controller_state_write_stale`
+- controller service に start-limit ガードを追加し、急速な restart loop を抑制。
+
+### 検証
+
+- persistence 専用の回帰テストを追加。
+- 反映後に state の時刻進行が heartbeat 間隔で前進することを確認。

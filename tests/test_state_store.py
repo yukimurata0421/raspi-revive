@@ -2,27 +2,33 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from raspi_revive.models import ControllerRuntimeState
-from raspi_revive.state_store import save_runtime_state_if_changed
+from raspi_revive.models import ControllerState, ControllerRuntimeState
+from raspi_revive.state_store import load_runtime_state, save_runtime_state
 
 
-def test_save_runtime_state_if_changed_skips_unchanged_existing_file(tmp_path: Path) -> None:
+def test_load_runtime_state_returns_default_when_missing(tmp_path: Path) -> None:
     path = tmp_path / "controller-state.json"
-    state = ControllerRuntimeState()
-    path.write_text(
-        '{"current_state":"HEALTHY","consecutive_counts":{},"last_action_ts":null,'
-        '"action_timestamps":[],"lockout_until_ts":null,"pending_verification":null,'
-        '"previous_host_boot_id":null,"previous_host_seq":null,"last_action_incident_key":null,'
-        '"lockout_latch_active":false}',
-        encoding="utf-8",
+    state = load_runtime_state(path)
+    assert isinstance(state, ControllerRuntimeState)
+    assert state.current_state == ControllerState.HEALTHY
+    assert state.schema_version == 1
+    assert state.last_state_write_ts is None
+
+
+def test_save_and_load_runtime_state_roundtrip(tmp_path: Path) -> None:
+    path = tmp_path / "controller-state.json"
+    state = ControllerRuntimeState(
+        current_state=ControllerState.HEALTHY,
+        schema_version=2,
+        code_version="0.1.0-test",
+        last_loop_ts=123.0,
+        last_observation_ts=122.5,
+        last_state_write_ts=123.0,
     )
-    changed = save_runtime_state_if_changed(path, state.to_dict(), state)
-    assert changed is False
-
-
-def test_save_runtime_state_if_changed_writes_when_missing(tmp_path: Path) -> None:
-    path = tmp_path / "controller-state.json"
-    state = ControllerRuntimeState()
-    changed = save_runtime_state_if_changed(path, state.to_dict(), state)
-    assert changed is True
-    assert path.exists()
+    save_runtime_state(path, state)
+    loaded = load_runtime_state(path)
+    assert loaded.schema_version == 2
+    assert loaded.code_version == "0.1.0-test"
+    assert loaded.last_loop_ts == 123.0
+    assert loaded.last_observation_ts == 122.5
+    assert loaded.last_state_write_ts == 123.0

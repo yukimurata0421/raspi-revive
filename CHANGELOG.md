@@ -20,6 +20,33 @@ All notable changes to this project are documented in this file.
   - stop restart loop on preflight failure (`RestartPreventExitStatus=75`)
 - Added CI import preflight check and runtime preflight tests.
 
+## 2026-04-25
+
+### Controller state persistence heartbeat hardening
+
+- Added runtime-state heartbeat fields:
+  - `last_loop_ts`
+  - `last_observation_ts`
+  - `last_state_write_ts`
+- Added structural metadata:
+  - `schema_version`
+  - `code_version`
+- Added explicit structural comparison split (`HEARTBEAT_FIELDS`, `to_structural_dict()`).
+- Changed persistence write trigger to:
+  - structural state change, or
+  - state file missing, or
+  - heartbeat interval elapsed (`30s`).
+- Added lifecycle events for state-persistence anomalies:
+  - `controller_state_write_failed`
+  - `controller_state_write_stale`
+- Added controller start-limit guard via drop-in:
+  - `StartLimitIntervalSec=300`
+  - `StartLimitBurst=5`
+- Added deployable drop-in:
+  - `targets/raspi-zero-controller/systemd/raspi-revive-controller.service.d/40-start-limit.conf`
+- Added persistence-focused regression tests for heartbeat write timing and structural/heartbeat split behavior.
+- Removed unused `save_runtime_state_if_changed` helper and replaced tests with load/save runtime-state path coverage.
+
 ## 2026-04-21
 
 ### Phase C rollout documentation alignment
