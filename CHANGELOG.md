@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented in this file.
 
+## 2026-04-26
+
+### Atomic controller deployment and preflight hardening
+
+- Added atomic release switch deployment script:
+  - `scripts/deploy_controller_release.sh`
+- Added deployment contract docs:
+  - `docs/deployment.md`
+  - `docs/deployment.ja.md`
+- Added runtime preflight module and wrapper:
+  - `src/raspi_revive/preflight.py`
+  - `targets/raspi-zero-controller/scripts/preflight_runtime_imports.py`
+- Updated controller unit template to:
+  - use `/opt/raspi-revive/current/...`
+  - run stronger `ExecStartPre` checks
+  - stop restart loop on preflight failure (`RestartPreventExitStatus=75`)
+- Added CI import preflight check and runtime preflight tests.
+
 ## 2026-04-21
 
 ### Phase C rollout documentation alignment

@@ -1,5 +1,26 @@
 # Engineering Decisions
 
+## 2026-04-26: Prevent partial deployment by atomic release switch
+
+### Context
+
+- On `2026-04-25 19:28 JST`, the controller entered a startup failure loop caused by deployment inconsistency (`ImportError` during `ExecStartPre`).
+- Root cause was partial file reflection during in-place updates, where module imports observed mixed versions.
+
+### Decision
+
+1. Deploy controller code as immutable release snapshots under `/opt/raspi-revive/releases/<release-id>/`.
+2. Activate a release only by atomically switching `/opt/raspi-revive/current`.
+3. Run preflight against the staged release before switching symlink.
+4. Keep runtime `ExecStartPre` checks with `RestartPreventExitStatus=75` as the final guard.
+5. Add post-deploy sanity checks (service active, state freshness, no recent state-write failure event).
+
+### Rationale
+
+- This removes partial reflection as a deploy-time failure mode instead of only reducing damage after failure.
+- Rollback becomes deterministic (single symlink switch + restart).
+- The preflight now validates the exact release that will be activated.
+
 ## 2026-04-19: Phase A GPIO Observation Bring-up (Pi 5 -> Zero)
 
 ### Context
