@@ -38,6 +38,13 @@ Use placeholders in public docs/config examples.
 3. Keep rationale (`why`) and policy (`what`) unchanged.
 4. Move date-specific operations history to private runbook.
 
+## Runtime State Freshness Check Notes
+
+- Canonical state path is configured by `controller_state_path` in controller config.
+- If runtime has both `/var/lib/raspi-revive/state/` and `/run/raspi-revive/state/`, verify freshness at the canonical path.
+- When checking `/run/.../controller-state.json`, use `stat -L` to follow symlinks.
+- Use `journalctl --since "5 min ago"` format; `--since "now-5min"` is not valid.
+
 ## Private Runbook Template
 
 Use `docs/private-runbook.template.md` as the base for your private runbook.
