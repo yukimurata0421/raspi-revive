@@ -123,6 +123,16 @@ class PendingVerification:
     correlation_id: str
 
 
+# Fields excluded from structural-diff persistence checks.
+HEARTBEAT_FIELDS: frozenset[str] = frozenset(
+    {
+        "last_loop_ts",
+        "last_observation_ts",
+        "last_state_write_ts",
+    }
+)
+
+
 @dataclass(slots=True)
 class ControllerRuntimeState:
     current_state: ControllerState = ControllerState.HEALTHY
@@ -139,6 +149,11 @@ class ControllerRuntimeState:
     last_phase_label: str | None = None
     last_action_gate_signature: str | None = None
     last_maintenance_mode: bool | None = None
+    schema_version: int = 1
+    code_version: str | None = None
+    last_loop_ts: float | None = None
+    last_observation_ts: float | None = None
+    last_state_write_ts: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         pending = None
@@ -165,7 +180,16 @@ class ControllerRuntimeState:
             "last_phase_label": self.last_phase_label,
             "last_action_gate_signature": self.last_action_gate_signature,
             "last_maintenance_mode": self.last_maintenance_mode,
+            "schema_version": self.schema_version,
+            "code_version": self.code_version,
+            "last_loop_ts": self.last_loop_ts,
+            "last_observation_ts": self.last_observation_ts,
+            "last_state_write_ts": self.last_state_write_ts,
         }
+
+    def to_structural_dict(self) -> dict[str, Any]:
+        """Return persistence-structure payload excluding heartbeat fields."""
+        return {k: v for k, v in self.to_dict().items() if k not in HEARTBEAT_FIELDS}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ControllerRuntimeState":
@@ -201,5 +225,18 @@ class ControllerRuntimeState:
                 None
                 if data.get("last_maintenance_mode") is None
                 else bool(data.get("last_maintenance_mode"))
+            ),
+            schema_version=int(data.get("schema_version", 1)),
+            code_version=(None if data.get("code_version") is None else str(data["code_version"])),
+            last_loop_ts=(None if data.get("last_loop_ts") is None else float(data["last_loop_ts"])),
+            last_observation_ts=(
+                None
+                if data.get("last_observation_ts") is None
+                else float(data["last_observation_ts"])
+            ),
+            last_state_write_ts=(
+                None
+                if data.get("last_state_write_ts") is None
+                else float(data["last_state_write_ts"])
             ),
         )
