@@ -1,5 +1,26 @@
 # Engineering Decisions
 
+## 2026-04-26: partial deployment を防ぐアトミック配備へ移行
+
+### 背景
+
+- `2026-04-25 19:28 JST` に、controller は `ExecStartPre` の `ImportError` を伴う起動失敗ループに入った。
+- 原因は in-place 更新中の部分反映で、import 解決時に版の混在を観測したこと。
+
+### 意思決定
+
+1. controller 配備は `/opt/raspi-revive/releases/<release-id>/` の不変スナップショット方式にする。
+2. 稼働切替は `/opt/raspi-revive/current` のアトミック symlink 切替のみで行う。
+3. symlink 切替前に staged release に対して preflight を実行する。
+4. 最終防御として runtime 側 `ExecStartPre` と `RestartPreventExitStatus=75` は維持する。
+5. 配備後 sanity check（service active / state 鮮度 / state write failure event 不在）を実施する。
+
+### 根拠
+
+- 障害後の被害縮小ではなく、障害原因（部分反映）自体を配備手順から除去できる。
+- rollback は symlink 切替 + restart の決定論的手順になる。
+- preflight が「次に有効化される release」を直接検証できる。
+
 ## 2026-04-19: Phase A GPIO 観測導入（Pi 5 -> Zero）
 
 ### 背景
