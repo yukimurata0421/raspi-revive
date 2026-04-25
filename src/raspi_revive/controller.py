@@ -40,6 +40,8 @@ class ReviveController:
     def run_cycle(self) -> None:
         obs = self._collector.collect(self._runtime_state.previous_host_seq)
         cycle_ts = obs.ts
+        # Intentionally record stale state-file age even on the first cycle after
+        # a restart if previously persisted state is old.
         if self._runtime_state.last_state_write_ts is not None:
             state_write_age = cycle_ts - self._runtime_state.last_state_write_ts
             if state_write_age > STATE_STALE_WARNING_THRESHOLD_SEC:

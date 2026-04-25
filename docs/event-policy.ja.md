@@ -26,12 +26,17 @@
 - `sentinel_restart_completed`
 - `sentinel_restart_verified`
 - `sentinel_restart_failed`
+- `controller_state_write_failed`
+- `controller_state_write_stale`
 
 ## `events.jsonl` に書かないもの
 
 - HEALTHY 継続中の周期 heartbeat
 - 既に `observations.jsonl` にある毎 cycle 観測
 - 既に `actions.jsonl` にある毎 cycle 抑止詳細
+
+`controller_state_write_stale` は判定入力ではなく lifecycle 異常イベントとして扱います。
+過去に保存された state が古い場合、起動直後に記録されることがあります。
 
 ## Phase A で events が静かなときの解釈
 

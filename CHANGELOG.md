@@ -21,10 +21,10 @@ All notable changes to this project are documented in this file.
 - Added lifecycle events for state-persistence anomalies:
   - `controller_state_write_failed`
   - `controller_state_write_stale`
-- Added controller unit start-limit guard:
+- Added controller start-limit guard via drop-in:
   - `StartLimitIntervalSec=300`
   - `StartLimitBurst=5`
-- Added deployable drop-in example:
+- Added deployable drop-in:
   - `targets/raspi-zero-controller/systemd/raspi-revive-controller.service.d/40-start-limit.conf`
 - Added persistence-focused regression tests for heartbeat write timing and structural/heartbeat split behavior.
 

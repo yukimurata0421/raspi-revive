@@ -2,8 +2,6 @@
 Description=raspi-revive out-of-band recovery controller
 After=network-online.target raspi-revive-gpio-observer.service
 Wants=network-online.target raspi-revive-gpio-observer.service
-StartLimitIntervalSec=300
-StartLimitBurst=5
 
 [Service]
 Type=simple
