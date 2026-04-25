@@ -27,6 +27,7 @@ All notable changes to this project are documented in this file.
 - Added deployable drop-in:
   - `targets/raspi-zero-controller/systemd/raspi-revive-controller.service.d/40-start-limit.conf`
 - Added persistence-focused regression tests for heartbeat write timing and structural/heartbeat split behavior.
+- Removed unused `save_runtime_state_if_changed` helper and replaced tests with load/save runtime-state path coverage.
 
 ## 2026-04-21
 
