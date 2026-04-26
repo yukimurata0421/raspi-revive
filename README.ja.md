@@ -73,6 +73,9 @@
 - `actions.jsonl`
 - `events.jsonl`（lifecycle / transition 専用、意図的に疎）
 - controller state JSON
+- `intervention-evidence/intervention_evidence_*.json`（介入直前に固定する証拠スナップショット）
+- `incident-summary.json`（最新の incident と decision のスナップショット）
+- `controller-stats.json`（runtime カウンタと state/action 集計）
 - 任意通知ファイル: `notify-events.jsonl`、`notify-stats.json`、`notify-queue.json`
 
 steady-state の連続根拠は `observations.jsonl` / `decisions.jsonl` / `actions.jsonl` を正本として確認します。

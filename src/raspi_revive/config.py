@@ -58,6 +58,9 @@ class PathConfig:
     actions_log_path: Path
     events_log_path: Path
     controller_state_path: Path
+    intervention_evidence_dir: Path | None = None
+    incident_summary_path: Path | None = None
+    controller_stats_path: Path | None = None
 
 
 @dataclass(slots=True)
@@ -137,8 +140,9 @@ def load_controller_config(path: str | Path) -> ControllerConfig:
     if webhook_env:
         webhook_url = os.getenv(webhook_env, webhook_url).strip()
 
-    default_queue_path = _as_path(str(_as_path(paths["controller_state_path"]).with_name("notify-queue.json")))
-    default_stats_path = _as_path(str(_as_path(paths["controller_state_path"]).with_name("notify-stats.json")))
+    controller_state_path = _as_path(paths["controller_state_path"])
+    default_queue_path = _as_path(str(controller_state_path.with_name("notify-queue.json")))
+    default_stats_path = _as_path(str(controller_state_path.with_name("notify-stats.json")))
     default_events_path = _as_path(str(_as_path(paths["actions_log_path"]).with_name("notify-events.jsonl")))
     default_controller_events_path = _as_path(
         str(_as_path(paths["actions_log_path"]).with_name("events.jsonl"))
@@ -186,7 +190,31 @@ def load_controller_config(path: str | Path) -> ControllerConfig:
             decisions_log_path=_as_path(paths["decisions_log_path"]),
             actions_log_path=_as_path(paths["actions_log_path"]),
             events_log_path=_as_path(str(paths.get("events_log_path", default_controller_events_path))),
-            controller_state_path=_as_path(paths["controller_state_path"]),
+            controller_state_path=controller_state_path,
+            intervention_evidence_dir=_as_path(
+                str(
+                    paths.get(
+                        "intervention_evidence_dir",
+                        controller_state_path.parent / "intervention-evidence",
+                    )
+                )
+            ),
+            incident_summary_path=_as_path(
+                str(
+                    paths.get(
+                        "incident_summary_path",
+                        controller_state_path.parent / "incident-summary.json",
+                    )
+                )
+            ),
+            controller_stats_path=_as_path(
+                str(
+                    paths.get(
+                        "controller_stats_path",
+                        controller_state_path.parent / "controller-stats.json",
+                    )
+                )
+            ),
         ),
         actions=ActionConfig(
             dry_run=bool(actions.get("dry_run", True)),

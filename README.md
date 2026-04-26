@@ -73,6 +73,9 @@ Operational records:
 - `actions.jsonl`
 - `events.jsonl` (lifecycle and transition events only; intentionally sparse)
 - controller state JSON
+- `intervention-evidence/intervention_evidence_*.json` (captured before intervention)
+- `incident-summary.json` (latest incident and decision snapshot)
+- `controller-stats.json` (runtime counters and state/action totals)
 - optional notify files: `notify-events.jsonl`, `notify-stats.json`, `notify-queue.json`
 
 Steady-state evidence remains in `observations.jsonl` / `decisions.jsonl` / `actions.jsonl`.

@@ -8,8 +8,16 @@
 - `decisions.jsonl`: 毎 cycle の判定と選択 action (`Decision` レイヤー)
 - `actions.jsonl`: 毎 cycle の action 実行/抑止の詳細 (`Intervention` レイヤー)
 - `events.jsonl`: noteworthy な lifecycle / transition のみ
+- `intervention-evidence/intervention_evidence_*.json`: 介入実行直前に固定する evidence bundle
+- `incident-summary.json`: 運用向けの最新 incident / decision スナップショット
+- `controller-stats.json`: 運用向けの runtime カウンタと state/action 集計
 
 `events.jsonl` は意図的に疎に保ち、heartbeat ストリームにはしません。
+
+## Evidence Bundle Before Action
+
+`chosen_action != NO_ACTION` のとき、controller はコマンド実行前に evidence snapshot を1件出力します。
+この bundle には incident key、candidate action、phase gate、cooldown/lockout 可否、suppressed actions、介入根拠となった観測セットを含めます。
 
 ## `events.jsonl` に書くもの
 

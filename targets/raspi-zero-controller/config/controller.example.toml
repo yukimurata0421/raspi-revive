@@ -33,6 +33,9 @@ decisions_log_path = "/var/log/raspi-revive/decisions.jsonl"
 actions_log_path = "/var/log/raspi-revive/actions.jsonl"
 events_log_path = "/var/log/raspi-revive/events.jsonl"
 controller_state_path = "/var/lib/raspi-revive/state/controller-state.json"
+intervention_evidence_dir = "/var/lib/raspi-revive/state/intervention-evidence"
+incident_summary_path = "/var/lib/raspi-revive/state/incident-summary.json"
+controller_stats_path = "/var/lib/raspi-revive/state/controller-stats.json"
 
 [actions]
 dry_run = true

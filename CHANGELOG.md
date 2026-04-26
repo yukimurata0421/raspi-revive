@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 ## 2026-04-26
 
+### Intervention evidence and operator snapshots
+
+- Added pre-action evidence bundle output:
+  - `intervention-evidence/intervention_evidence_*.json`
+- Added operator-facing snapshots:
+  - `incident-summary.json`
+  - `controller-stats.json`
+- Added optional path overrides in controller config:
+  - `paths.intervention_evidence_dir`
+  - `paths.incident_summary_path`
+  - `paths.controller_stats_path`
+- Added controller regression test to verify:
+  - evidence bundle is written before action execution
+  - incident summary and controller stats snapshots are generated.
+
 ### Atomic controller deployment and preflight hardening
 
 - Added atomic release switch deployment script:
