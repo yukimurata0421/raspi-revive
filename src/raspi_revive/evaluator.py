@@ -10,42 +10,6 @@ class Classification:
     state: ControllerState
     evidence: Evidence
     reason: str
-    failure_reason_code: str | None = None
-
-
-TELEMETRY_SOURCE_FAILURE = "TELEMETRY_SOURCE_FAILURE"
-TELEMETRY_EXPORT_FAILURE = "TELEMETRY_EXPORT_FAILURE"
-TELEMETRY_PULL_FAILURE = "TELEMETRY_PULL_FAILURE"
-
-
-def _telemetry_failure_classification(obs: Observation) -> tuple[str, str]:
-    if not obs.export_meta_fresh:
-        return (
-            TELEMETRY_PULL_FAILURE,
-            "telemetry stale and exporter meta is stale/missing on controller side",
-        )
-
-    source_host_stale = obs.export_source_host_heartbeat_fresh is False
-    source_sentinel_stale = (
-        (obs.export_source_sentinel_stats_fresh is False)
-        or (obs.export_source_sentinel_state_fresh is False)
-    )
-    if source_host_stale or source_sentinel_stale:
-        return (
-            TELEMETRY_SOURCE_FAILURE,
-            "telemetry stale and exporter reports source-side heartbeat/sentinel staleness",
-        )
-
-    if obs.export_last_error:
-        return (
-            TELEMETRY_EXPORT_FAILURE,
-            f"telemetry stale and exporter reported copy errors: {obs.export_last_error}",
-        )
-
-    return (
-        TELEMETRY_EXPORT_FAILURE,
-        "telemetry stale despite fresh exporter meta and source mtimes",
-    )
 
 
 def build_evidence(obs: Observation) -> Evidence:
@@ -62,6 +26,9 @@ def build_evidence(obs: Observation) -> Evidence:
 
 def classify(obs: Observation) -> Classification:
     ev = build_evidence(obs)
+    # NOTE: host_heartbeat_progressing is captured in Evidence but not yet used in
+    # classification gates. For future hardening, consider treating sustained
+    # "fresh-but-not-progressing" heartbeat as degradation signal.
 
     if ev.gpio_fresh and ev.host_heartbeat_fresh and ev.ping_ok and (not ev.ssh_ok):
         return Classification(
@@ -78,21 +45,6 @@ def classify(obs: Observation) -> Classification:
         )
 
     sentinel_stale = not ev.sentinel_fresh
-    if (
-        ev.gpio_fresh
-        and ev.host_heartbeat_fresh
-        and (not ev.host_heartbeat_progressing)
-        and ev.ssh_ok
-        and sentinel_stale
-    ):
-        failure_code, reason = _telemetry_failure_classification(obs)
-        return Classification(
-            state=ControllerState.TELEMETRY_PIPELINE_FAILURE,
-            evidence=ev,
-            reason=reason,
-            failure_reason_code=failure_code,
-        )
-
     if ev.gpio_fresh and ev.host_heartbeat_fresh and ev.ssh_ok and sentinel_stale:
         return Classification(
             state=ControllerState.SENTINEL_ONLY_FAILURE,
@@ -100,22 +52,15 @@ def classify(obs: Observation) -> Classification:
             reason="sentinel facts stale while host/gpio/ssh indicate OS alive",
         )
 
-    telemetry_pipeline_failure = (not ev.host_heartbeat_fresh) and (not ev.sentinel_fresh)
-    if telemetry_pipeline_failure and ev.gpio_fresh and ev.ssh_ok:
-        failure_code, reason = _telemetry_failure_classification(obs)
-        return Classification(
-            state=ControllerState.TELEMETRY_PIPELINE_FAILURE,
-            evidence=ev,
-            reason=reason,
-            failure_reason_code=failure_code,
-        )
-
-    host_degraded_rebootable = (not ev.gpio_fresh) and (not ev.host_heartbeat_fresh)
+    host_degraded_rebootable = (
+        ((not ev.gpio_fresh) and (not ev.host_heartbeat_fresh))
+        or ((not ev.host_heartbeat_fresh) and (not ev.sentinel_fresh))
+    )
     if host_degraded_rebootable and ev.ssh_ok:
         return Classification(
             state=ControllerState.HOST_DEGRADED,
             evidence=ev,
-            reason="out-of-band and host-heartbeat evidence indicate host degradation with ssh reachable",
+            reason="multi-evidence degradation with ssh reachable",
         )
 
     if (not ev.gpio_fresh) and (not ev.ssh_ok) and (not ev.host_heartbeat_fresh):

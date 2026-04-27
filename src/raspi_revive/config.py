@@ -47,7 +47,7 @@ class GuardConfig:
     lockout_window_seconds: float
     max_actions_per_window: int
     post_action_verification_wait_seconds: float
-    post_boot_reconciliation_wait_seconds: float
+    post_boot_reconciliation_wait_seconds: float = 120.0
 
 
 @dataclass(slots=True)
@@ -74,11 +74,11 @@ class ActionConfig:
     enable_remote_reboot: bool
     enable_gpio_reboot: bool
     enable_power_button_pulse: bool
-    enabled_phases: frozenset[str]
     restart_sentinel_cmd: list[str]
     remote_reboot_cmd: list[str]
     gpio_reboot_cmd: list[str]
     power_button_pulse_cmd: list[str]
+    enabled_phases: frozenset[str] = frozenset({"A", "B", "C", "D"})
 
 
 @dataclass(slots=True)

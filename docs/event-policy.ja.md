@@ -8,16 +8,8 @@
 - `decisions.jsonl`: 毎 cycle の判定と選択 action (`Decision` レイヤー)
 - `actions.jsonl`: 毎 cycle の action 実行/抑止の詳細 (`Intervention` レイヤー)
 - `events.jsonl`: noteworthy な lifecycle / transition のみ
-- `intervention-evidence/intervention_evidence_*.json`: 介入実行直前に固定する evidence bundle
-- `incident-summary.json`: 運用向けの最新 incident / decision スナップショット
-- `controller-stats.json`: 運用向けの runtime カウンタと state/action 集計
 
 `events.jsonl` は意図的に疎に保ち、heartbeat ストリームにはしません。
-
-## Evidence Bundle Before Action
-
-`chosen_action != NO_ACTION` のとき、controller はコマンド実行前に evidence snapshot を1件出力します。
-この bundle には incident key、candidate action、phase gate、cooldown/lockout 可否、suppressed actions、介入根拠となった観測セットを含めます。
 
 ## `events.jsonl` に書くもの
 
@@ -34,12 +26,17 @@
 - `sentinel_restart_completed`
 - `sentinel_restart_verified`
 - `sentinel_restart_failed`
+- `controller_state_write_failed`
+- `controller_state_write_stale`
 
 ## `events.jsonl` に書かないもの
 
 - HEALTHY 継続中の周期 heartbeat
 - 既に `observations.jsonl` にある毎 cycle 観測
 - 既に `actions.jsonl` にある毎 cycle 抑止詳細
+
+`controller_state_write_stale` は判定入力ではなく lifecycle 異常イベントとして扱います。
+過去に保存された state が古い場合、起動直後に記録されることがあります。
 
 ## Phase A で events が静かなときの解釈
 

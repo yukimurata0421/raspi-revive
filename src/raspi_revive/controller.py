@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
-from datetime import datetime, timezone
 import time
 from typing import Any
 
@@ -11,7 +9,6 @@ from .collector import ObservationCollector
 from .config import ControllerConfig
 from .evaluator import classify
 from .executor import ActionExecutor
-from .io import read_json, write_json_atomic
 from .models import ControllerRuntimeState, Decision, HEARTBEAT_FIELDS, RecoveryAction
 from .notifier import NotifyDispatcher
 from .probes import file_age_seconds
@@ -28,28 +25,10 @@ class ReviveController:
         self._collector = ObservationCollector(config)
         self._state_machine = StateMachine(config)
         self._executor = ActionExecutor(config.actions)
-        self._audit = AuditLogger(config.paths, config.logs)
+        self._audit = AuditLogger(config.paths)
         self._notifier = NotifyDispatcher(config)
         self._runtime_state = load_runtime_state(config.paths.controller_state_path)
         self._runtime_state.code_version = __version__
-        self._intervention_evidence_dir = (
-            self._config.paths.intervention_evidence_dir
-            or (self._config.paths.controller_state_path.parent / "intervention-evidence")
-        )
-        self._incident_summary_path = (
-            self._config.paths.incident_summary_path
-            or (self._config.paths.controller_state_path.parent / "incident-summary.json")
-        )
-        self._controller_stats_path = (
-            self._config.paths.controller_stats_path
-            or (self._config.paths.controller_state_path.parent / "controller-stats.json")
-        )
-        self._stats_started_ts = time.time()
-        self._cycle_count = 0
-        self._state_counts: Counter[str] = Counter()
-        self._action_counts: Counter[str] = Counter()
-        self._executed_action_count = 0
-        self._load_controller_stats()
         # Force one baseline write after startup, then track actual persisted value.
         self._last_persisted_state: dict[str, Any] | None = None
         self._emit_startup_events(time.time())
@@ -61,6 +40,8 @@ class ReviveController:
     def run_cycle(self) -> None:
         obs = self._collector.collect(self._runtime_state.previous_host_seq)
         cycle_ts = obs.ts
+        # Intentionally record stale state-file age even on the first cycle after
+        # a restart if previously persisted state is old.
         if self._runtime_state.last_state_write_ts is not None:
             state_write_age = cycle_ts - self._runtime_state.last_state_write_ts
             if state_write_age > STATE_STALE_WARNING_THRESHOLD_SEC:
@@ -89,9 +70,6 @@ class ReviveController:
             observation=obs,
         )
         self._audit.log_decision(cycle_ts, decision)
-        self._cycle_count += 1
-        self._state_counts[decision.classified_state.value] += 1
-        self._action_counts[decision.chosen_action.value] += 1
 
         execution_payload = {
             "executed": False,
@@ -100,7 +78,6 @@ class ReviveController:
             "detail": "no action",
         }
         if decision.chosen_action != RecoveryAction.NO_ACTION:
-            self._write_intervention_evidence_bundle(cycle_ts, decision, obs)
             if decision.chosen_action == RecoveryAction.RESTART_SENTINEL:
                 self._audit.log_event(
                     ts=cycle_ts,
@@ -123,8 +100,6 @@ class ReviveController:
                 execution=execution_payload,
                 now_ts=cycle_ts,
             )
-            if result.executed:
-                self._executed_action_count += 1
             if decision.chosen_action == RecoveryAction.RESTART_SENTINEL:
                 if result.success:
                     self._audit.log_event(
@@ -193,8 +168,6 @@ class ReviveController:
         self._notifier.handle_cycle(decision, obs)
         self._runtime_state.last_loop_ts = cycle_ts
         self._runtime_state.last_observation_ts = obs.ts
-        self._write_incident_summary(cycle_ts, decision, obs, execution_payload)
-        self._write_controller_stats(cycle_ts)
 
         current_structural = self._runtime_state.to_structural_dict()
         last_structural = (
@@ -230,158 +203,6 @@ class ReviveController:
                     },
                     correlation_id=decision.correlation_id,
                 )
-
-    def _load_controller_stats(self) -> None:
-        payload = read_json(self._controller_stats_path)
-        if payload is None:
-            return
-        self._cycle_count = int(payload.get("cycle_count", 0))
-        self._executed_action_count = int(payload.get("executed_action_count", 0))
-        state_counts = payload.get("state_counts", {})
-        action_counts = payload.get("action_counts", {})
-        if isinstance(state_counts, dict):
-            self._state_counts.update({str(k): int(v) for k, v in state_counts.items()})
-        if isinstance(action_counts, dict):
-            self._action_counts.update({str(k): int(v) for k, v in action_counts.items()})
-
-    def _write_intervention_evidence_bundle(
-        self,
-        ts: float,
-        decision: Decision,
-        obs: Any,
-    ) -> None:
-        timestamp = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y%m%d-%H%M%S")
-        bundle_name = f"intervention_evidence_{timestamp}_{decision.correlation_id[:8]}.json"
-        bundle_path = self._intervention_evidence_dir / bundle_name
-        gates = self._action_gate_snapshot()
-        payload = {
-            "ts": ts,
-            "ts_iso": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
-            "incident_key": decision.incident_key,
-            "candidate_action": decision.chosen_action.value,
-            "phase_gate": self._phase_label().lower().replace("_", "-"),
-            "cooldown_ok": not decision.cooldown_active,
-            "lockout_ok": not decision.lockout_active,
-            "maintenance_mode_active": decision.maintenance_mode_active,
-            "decision_reason": decision.reason,
-            "failure_reason_code": decision.failure_reason_code,
-            "suppressed_actions": self._suppressed_actions(decision.chosen_action),
-            "action_gate": gates,
-            "evidence": {
-                "gpio_heartbeat": ("fresh" if decision.evidence.gpio_fresh else "stale"),
-                "host_heartbeat": ("fresh" if decision.evidence.host_heartbeat_fresh else "stale"),
-                "host_heartbeat_progressing": (
-                    "progressing" if decision.evidence.host_heartbeat_progressing else "stalled"
-                ),
-                "ssh": ("ok" if decision.evidence.ssh_ok else "fail"),
-                "ping": ("ok" if decision.evidence.ping_ok else "fail"),
-                "sentinel_stats": ("fresh" if decision.evidence.sentinel_stats_fresh else "stale"),
-                "sentinel_state": ("fresh" if decision.evidence.sentinel_state_fresh else "stale"),
-            },
-            "observation": {
-                "host_boot_id": obs.host_boot_id,
-                "host_seq": obs.host_seq,
-                "host_wall_time": obs.host_wall_time,
-                "host_heartbeat_age_sec": obs.host_heartbeat_age_sec,
-                "gpio_heartbeat_age_sec": obs.gpio_heartbeat_age_sec,
-                "sentinel_stats_age_sec": obs.sentinel_stats_age_sec,
-                "sentinel_state_age_sec": obs.sentinel_state_age_sec,
-            },
-        }
-        write_json_atomic(bundle_path, payload)
-
-    def _write_incident_summary(
-        self,
-        ts: float,
-        decision: Decision,
-        obs: Any,
-        execution_payload: dict[str, Any],
-    ) -> None:
-        payload = {
-            "ts": ts,
-            "ts_iso": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
-            "phase": self._phase_label(),
-            "current_state": decision.classified_state.value,
-            "incident_key": decision.incident_key,
-            "chosen_action": decision.chosen_action.value,
-            "decision_reason": decision.reason,
-            "failure_reason_code": decision.failure_reason_code,
-            "cooldown_active": decision.cooldown_active,
-            "lockout_active": decision.lockout_active,
-            "maintenance_mode_active": decision.maintenance_mode_active,
-            "execution": execution_payload,
-            "evidence": {
-                "gpio_heartbeat": ("fresh" if decision.evidence.gpio_fresh else "stale"),
-                "host_heartbeat": ("fresh" if decision.evidence.host_heartbeat_fresh else "stale"),
-                "host_heartbeat_progressing": decision.evidence.host_heartbeat_progressing,
-                "ssh_ok": decision.evidence.ssh_ok,
-                "ping_ok": decision.evidence.ping_ok,
-                "sentinel_stats_fresh": decision.evidence.sentinel_stats_fresh,
-                "sentinel_state_fresh": decision.evidence.sentinel_state_fresh,
-            },
-            "observation": {
-                "host_boot_id": obs.host_boot_id,
-                "host_seq": obs.host_seq,
-                "host_wall_time": obs.host_wall_time,
-            },
-        }
-        write_json_atomic(self._incident_summary_path, payload)
-
-    def _write_controller_stats(self, ts: float) -> None:
-        payload = {
-            "ts": ts,
-            "ts_iso": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
-            "code_version": __version__,
-            "phase": self._phase_label(),
-            "uptime_sec": max(0.0, ts - self._stats_started_ts),
-            "cycle_count": self._cycle_count,
-            "executed_action_count": self._executed_action_count,
-            "state_counts": dict(sorted(self._state_counts.items())),
-            "action_counts": dict(sorted(self._action_counts.items())),
-            "last_state_write_ts": self._runtime_state.last_state_write_ts,
-            "last_loop_ts": self._runtime_state.last_loop_ts,
-            "last_observation_ts": self._runtime_state.last_observation_ts,
-            "last_state": self._runtime_state.current_state.value,
-        }
-        write_json_atomic(self._controller_stats_path, payload)
-
-    def _suppressed_actions(self, chosen_action: RecoveryAction) -> list[str]:
-        actions = [
-            RecoveryAction.RESTART_SENTINEL,
-            RecoveryAction.REMOTE_REBOOT,
-            RecoveryAction.GPIO_REBOOT,
-            RecoveryAction.POWER_BUTTON_PULSE,
-        ]
-        suppressed: list[str] = []
-        for action in actions:
-            if action == chosen_action:
-                continue
-            if not self._action_allowed(action):
-                suppressed.append(action.value)
-        return suppressed
-
-    def _action_allowed(self, action: RecoveryAction) -> bool:
-        required_phase = self._required_phase(action)
-        if required_phase is not None and required_phase not in self._config.actions.enabled_phases:
-            return False
-        if action == RecoveryAction.RESTART_SENTINEL:
-            return self._config.actions.enable_restart_sentinel
-        if action == RecoveryAction.REMOTE_REBOOT:
-            return self._config.actions.enable_remote_reboot
-        if action == RecoveryAction.GPIO_REBOOT:
-            return self._config.actions.enable_gpio_reboot
-        if action == RecoveryAction.POWER_BUTTON_PULSE:
-            return self._config.actions.enable_power_button_pulse
-        return True
-
-    def _required_phase(self, action: RecoveryAction) -> str | None:
-        if action == RecoveryAction.RESTART_SENTINEL:
-            return "B"
-        if action == RecoveryAction.REMOTE_REBOOT:
-            return "C"
-        if action in (RecoveryAction.GPIO_REBOOT, RecoveryAction.POWER_BUTTON_PULSE):
-            return "D"
-        return None
 
     def _emit_startup_events(self, ts: float) -> None:
         phase = self._phase_label()
@@ -490,35 +311,51 @@ class ReviveController:
             )
             self._runtime_state.last_maintenance_mode = enabled
 
-    def _action_gate_snapshot(self) -> dict[str, bool | str]:
+    def _action_gate_snapshot(self) -> dict[str, bool]:
         return {
             "dry_run": self._config.actions.dry_run,
             "enable_restart_sentinel": self._config.actions.enable_restart_sentinel,
             "enable_remote_reboot": self._config.actions.enable_remote_reboot,
             "enable_gpio_reboot": self._config.actions.enable_gpio_reboot,
             "enable_power_button_pulse": self._config.actions.enable_power_button_pulse,
-            "enabled_phases": ",".join(sorted(self._config.actions.enabled_phases)),
         }
 
-    def _action_gate_signature(self, gates: dict[str, bool | str]) -> str:
-        parts: list[str] = []
-        for key, value in sorted(gates.items()):
-            if isinstance(value, bool):
-                parts.append(f"{key}={int(value)}")
-            else:
-                parts.append(f"{key}={value}")
-        return "|".join(parts)
+    def _action_gate_signature(self, gates: dict[str, bool]) -> str:
+        return "|".join(f"{key}={int(value)}" for key, value in sorted(gates.items()))
 
     def _phase_label(self) -> str:
         actions = self._config.actions
-        phases = actions.enabled_phases
-        if actions.dry_run and phases == {"A"}:
+        if (
+            actions.dry_run
+            and not actions.enable_restart_sentinel
+            and not actions.enable_remote_reboot
+            and not actions.enable_gpio_reboot
+            and not actions.enable_power_button_pulse
+        ):
             return "PHASE_A"
-        if (not actions.dry_run) and phases == {"A", "B"}:
+        if (
+            (not actions.dry_run)
+            and actions.enable_restart_sentinel
+            and (not actions.enable_remote_reboot)
+            and (not actions.enable_gpio_reboot)
+            and (not actions.enable_power_button_pulse)
+        ):
             return "PHASE_B"
-        if (not actions.dry_run) and phases == {"A", "B", "C"}:
+        if (
+            (not actions.dry_run)
+            and actions.enable_restart_sentinel
+            and actions.enable_remote_reboot
+            and (not actions.enable_gpio_reboot)
+            and (not actions.enable_power_button_pulse)
+        ):
             return "PHASE_C"
-        if (not actions.dry_run) and phases == {"A", "B", "C", "D"}:
+        if (
+            (not actions.dry_run)
+            and actions.enable_restart_sentinel
+            and actions.enable_remote_reboot
+            and actions.enable_gpio_reboot
+            and actions.enable_power_button_pulse
+        ):
             return "PHASE_D"
         return "CUSTOM"
 

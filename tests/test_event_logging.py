@@ -17,7 +17,6 @@ from raspi_revive.config import (
     ThresholdConfig,
 )
 from raspi_revive.controller import ReviveController
-from raspi_revive.executor import ActionExecutionResult
 
 
 def _build_config(tmp_path: Path, *, phase_b: bool) -> ControllerConfig:
@@ -216,63 +215,3 @@ def test_phase_b_restart_logs_verification_events(tmp_path: Path, monkeypatch) -
     assert "sentinel_restart_scheduled" in names
     assert "sentinel_restart_completed" in names
     assert "sentinel_restart_verified" in names
-
-
-def test_intervention_evidence_bundle_and_status_snapshots(tmp_path: Path, monkeypatch) -> None:
-    config = _build_config(tmp_path, phase_b=True)
-    _write_fact_files(tmp_path)
-    stale_ts = datetime.now(timezone.utc).timestamp() - 120.0
-    os.utime(config.paths.sentinel_stats_path, (stale_ts, stale_ts))
-    os.utime(config.paths.sentinel_state_path, (stale_ts, stale_ts))
-    monkeypatch.setattr("raspi_revive.collector.ping_probe", lambda **_: True)
-    monkeypatch.setattr("raspi_revive.collector.ssh_probe", lambda **_: True)
-    monkeypatch.setattr(
-        ReviveController,
-        "_verify_sentinel_restart_freshness",
-        lambda self: {
-            "verification_kind": "sentinel_freshness",
-            "verified": True,
-            "sentinel_stats_age_sec": 1.0,
-            "sentinel_stats_fresh": True,
-            "sentinel_state_age_sec": 1.0,
-            "sentinel_state_fresh": True,
-            "sentinel_stats_stale_sec": 30.0,
-            "sentinel_state_stale_sec": 30.0,
-        },
-    )
-
-    evidence_seen_before_executor = False
-
-    def _fake_run_action(self, _action):
-        del self
-        nonlocal evidence_seen_before_executor
-        bundle_files = sorted((tmp_path / "intervention-evidence").glob("intervention_evidence_*.json"))
-        assert bundle_files
-        payload = json.loads(bundle_files[-1].read_text(encoding="utf-8"))
-        assert payload["candidate_action"] == "RESTART_SENTINEL"
-        assert payload["incident_key"]
-        assert payload["cooldown_ok"] is True
-        assert payload["lockout_ok"] is True
-        evidence_seen_before_executor = True
-        return ActionExecutionResult(
-            executed=True,
-            success=True,
-            command=["true"],
-            detail="ok",
-        )
-
-    monkeypatch.setattr("raspi_revive.executor.ActionExecutor.run_action", _fake_run_action)
-
-    controller = ReviveController(config)
-    controller.run_cycle()
-    assert evidence_seen_before_executor is True
-
-    incident_summary = json.loads((tmp_path / "incident-summary.json").read_text(encoding="utf-8"))
-    assert incident_summary["candidate_action"] == "RESTART_SENTINEL"
-    assert incident_summary["incident_key"]
-    assert incident_summary["current_state"] == "SENTINEL_ONLY_FAILURE"
-
-    controller_stats = json.loads((tmp_path / "controller-stats.json").read_text(encoding="utf-8"))
-    assert controller_stats["cycle_count"] >= 1
-    assert controller_stats["executed_action_count"] >= 1
-    assert controller_stats["action_counts"]["RESTART_SENTINEL"] >= 1

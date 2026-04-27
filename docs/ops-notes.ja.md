@@ -38,13 +38,6 @@
 3. 設計理由（why）と方針（what）は維持する。
 4. 日付依存の運用履歴は private runbook へ移す。
 
-## runtime state 鮮度確認メモ
-
-- 正本の state path は controller 設定の `controller_state_path` を基準にする。
-- `/var/lib/raspi-revive/state/` と `/run/raspi-revive/state/` が共存する環境では、鮮度確認は正本パスを優先する。
-- `/run/.../controller-state.json` を確認する場合は、symlink を辿る `stat -L` を使う。
-- `journalctl --since` は `\"5 min ago\"` 形式を使う。`\"now-5min\"` は無効。
-
 ## Private Runbook テンプレート
 
 `docs/private-runbook.template.ja.md` を private runbook の雛形として使う。
