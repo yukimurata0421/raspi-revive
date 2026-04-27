@@ -95,6 +95,11 @@ class ReviveController:
                 "command": result.command,
                 "detail": result.detail,
             }
+            self._notifier.handle_action_execution(
+                decision=decision,
+                execution=execution_payload,
+                now_ts=cycle_ts,
+            )
             if decision.chosen_action == RecoveryAction.RESTART_SENTINEL:
                 if result.success:
                     self._audit.log_event(
