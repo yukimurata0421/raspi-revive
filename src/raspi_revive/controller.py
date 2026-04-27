@@ -12,11 +12,14 @@ from .config import ControllerConfig
 from .evaluator import classify
 from .executor import ActionExecutor
 from .io import read_json, write_json_atomic
-from .models import ControllerRuntimeState, Decision, RecoveryAction
+from .models import ControllerRuntimeState, Decision, HEARTBEAT_FIELDS, RecoveryAction
 from .notifier import NotifyDispatcher
 from .probes import file_age_seconds
 from .state_machine import StateMachine
 from .state_store import load_runtime_state, save_runtime_state
+
+STATE_HEARTBEAT_WRITE_INTERVAL_SEC = 30.0
+STATE_STALE_WARNING_THRESHOLD_SEC = STATE_HEARTBEAT_WRITE_INTERVAL_SEC * 3.0
 
 
 class ReviveController:
@@ -25,29 +28,27 @@ class ReviveController:
         self._collector = ObservationCollector(config)
         self._state_machine = StateMachine(config)
         self._executor = ActionExecutor(config.actions)
-        self._audit = AuditLogger(config.paths)
+        self._audit = AuditLogger(config.paths, config.logs)
         self._notifier = NotifyDispatcher(config)
         self._runtime_state = load_runtime_state(config.paths.controller_state_path)
+        self._runtime_state.code_version = __version__
         self._intervention_evidence_dir = (
             self._config.paths.intervention_evidence_dir
-            if self._config.paths.intervention_evidence_dir is not None
-            else self._config.paths.controller_state_path.parent / "intervention-evidence"
+            or (self._config.paths.controller_state_path.parent / "intervention-evidence")
         )
         self._incident_summary_path = (
             self._config.paths.incident_summary_path
-            if self._config.paths.incident_summary_path is not None
-            else self._config.paths.controller_state_path.parent / "incident-summary.json"
+            or (self._config.paths.controller_state_path.parent / "incident-summary.json")
         )
         self._controller_stats_path = (
             self._config.paths.controller_stats_path
-            if self._config.paths.controller_stats_path is not None
-            else self._config.paths.controller_state_path.parent / "controller-stats.json"
+            or (self._config.paths.controller_state_path.parent / "controller-stats.json")
         )
         self._stats_started_ts = time.time()
         self._cycle_count = 0
-        self._executed_action_count = 0
         self._state_counts: Counter[str] = Counter()
         self._action_counts: Counter[str] = Counter()
+        self._executed_action_count = 0
         self._load_controller_stats()
         # Force one baseline write after startup, then track actual persisted value.
         self._last_persisted_state: dict[str, Any] | None = None
@@ -60,6 +61,17 @@ class ReviveController:
     def run_cycle(self) -> None:
         obs = self._collector.collect(self._runtime_state.previous_host_seq)
         cycle_ts = obs.ts
+        if self._runtime_state.last_state_write_ts is not None:
+            state_write_age = cycle_ts - self._runtime_state.last_state_write_ts
+            if state_write_age > STATE_STALE_WARNING_THRESHOLD_SEC:
+                self._audit.log_event(
+                    ts=cycle_ts,
+                    event="controller_state_write_stale",
+                    detail={
+                        "age_seconds": state_write_age,
+                        "threshold_seconds": STATE_STALE_WARNING_THRESHOLD_SEC,
+                    },
+                )
         previous_state = self._runtime_state.current_state.value
         classification = classify(obs)
         decision = self._state_machine.decide(
@@ -77,7 +89,6 @@ class ReviveController:
             observation=obs,
         )
         self._audit.log_decision(cycle_ts, decision)
-
         self._cycle_count += 1
         self._state_counts[decision.classified_state.value] += 1
         self._action_counts[decision.chosen_action.value] += 1
@@ -107,6 +118,11 @@ class ReviveController:
                 "command": result.command,
                 "detail": result.detail,
             }
+            self._notifier.handle_action_execution(
+                decision=decision,
+                execution=execution_payload,
+                now_ts=cycle_ts,
+            )
             if result.executed:
                 self._executed_action_count += 1
             if decision.chosen_action == RecoveryAction.RESTART_SENTINEL:
@@ -175,12 +191,197 @@ class ReviveController:
         self._runtime_state.previous_host_boot_id = obs.host_boot_id
         self._runtime_state.previous_host_seq = obs.host_seq
         self._notifier.handle_cycle(decision, obs)
+        self._runtime_state.last_loop_ts = cycle_ts
+        self._runtime_state.last_observation_ts = obs.ts
         self._write_incident_summary(cycle_ts, decision, obs, execution_payload)
-        self._write_controller_stats(cycle_ts, decision)
-        current_state = self._runtime_state.to_dict()
-        if not self._config.paths.controller_state_path.exists() or self._last_persisted_state != current_state:
-            save_runtime_state(self._config.paths.controller_state_path, self._runtime_state)
-            self._last_persisted_state = current_state
+        self._write_controller_stats(cycle_ts)
+
+        current_structural = self._runtime_state.to_structural_dict()
+        last_structural = (
+            None
+            if self._last_persisted_state is None
+            else {
+                key: value
+                for key, value in self._last_persisted_state.items()
+                if key not in HEARTBEAT_FIELDS
+            }
+        )
+        structural_changed = current_structural != last_structural
+        file_missing = not self._config.paths.controller_state_path.exists()
+        last_write = self._runtime_state.last_state_write_ts
+        heartbeat_due = (
+            last_write is None
+            or (cycle_ts - last_write) >= STATE_HEARTBEAT_WRITE_INTERVAL_SEC
+        )
+        if structural_changed or file_missing or heartbeat_due:
+            self._runtime_state.last_state_write_ts = cycle_ts
+            try:
+                save_runtime_state(self._config.paths.controller_state_path, self._runtime_state)
+                self._last_persisted_state = self._runtime_state.to_dict()
+            except OSError as exc:
+                self._audit.log_event(
+                    ts=cycle_ts,
+                    event="controller_state_write_failed",
+                    detail={
+                        "error": str(exc),
+                        "path": str(self._config.paths.controller_state_path),
+                        "structural_changed": structural_changed,
+                        "heartbeat_due": heartbeat_due,
+                    },
+                    correlation_id=decision.correlation_id,
+                )
+
+    def _load_controller_stats(self) -> None:
+        payload = read_json(self._controller_stats_path)
+        if payload is None:
+            return
+        self._cycle_count = int(payload.get("cycle_count", 0))
+        self._executed_action_count = int(payload.get("executed_action_count", 0))
+        state_counts = payload.get("state_counts", {})
+        action_counts = payload.get("action_counts", {})
+        if isinstance(state_counts, dict):
+            self._state_counts.update({str(k): int(v) for k, v in state_counts.items()})
+        if isinstance(action_counts, dict):
+            self._action_counts.update({str(k): int(v) for k, v in action_counts.items()})
+
+    def _write_intervention_evidence_bundle(
+        self,
+        ts: float,
+        decision: Decision,
+        obs: Any,
+    ) -> None:
+        timestamp = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y%m%d-%H%M%S")
+        bundle_name = f"intervention_evidence_{timestamp}_{decision.correlation_id[:8]}.json"
+        bundle_path = self._intervention_evidence_dir / bundle_name
+        gates = self._action_gate_snapshot()
+        payload = {
+            "ts": ts,
+            "ts_iso": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
+            "incident_key": decision.incident_key,
+            "candidate_action": decision.chosen_action.value,
+            "phase_gate": self._phase_label().lower().replace("_", "-"),
+            "cooldown_ok": not decision.cooldown_active,
+            "lockout_ok": not decision.lockout_active,
+            "maintenance_mode_active": decision.maintenance_mode_active,
+            "decision_reason": decision.reason,
+            "failure_reason_code": decision.failure_reason_code,
+            "suppressed_actions": self._suppressed_actions(decision.chosen_action),
+            "action_gate": gates,
+            "evidence": {
+                "gpio_heartbeat": ("fresh" if decision.evidence.gpio_fresh else "stale"),
+                "host_heartbeat": ("fresh" if decision.evidence.host_heartbeat_fresh else "stale"),
+                "host_heartbeat_progressing": (
+                    "progressing" if decision.evidence.host_heartbeat_progressing else "stalled"
+                ),
+                "ssh": ("ok" if decision.evidence.ssh_ok else "fail"),
+                "ping": ("ok" if decision.evidence.ping_ok else "fail"),
+                "sentinel_stats": ("fresh" if decision.evidence.sentinel_stats_fresh else "stale"),
+                "sentinel_state": ("fresh" if decision.evidence.sentinel_state_fresh else "stale"),
+            },
+            "observation": {
+                "host_boot_id": obs.host_boot_id,
+                "host_seq": obs.host_seq,
+                "host_wall_time": obs.host_wall_time,
+                "host_heartbeat_age_sec": obs.host_heartbeat_age_sec,
+                "gpio_heartbeat_age_sec": obs.gpio_heartbeat_age_sec,
+                "sentinel_stats_age_sec": obs.sentinel_stats_age_sec,
+                "sentinel_state_age_sec": obs.sentinel_state_age_sec,
+            },
+        }
+        write_json_atomic(bundle_path, payload)
+
+    def _write_incident_summary(
+        self,
+        ts: float,
+        decision: Decision,
+        obs: Any,
+        execution_payload: dict[str, Any],
+    ) -> None:
+        payload = {
+            "ts": ts,
+            "ts_iso": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
+            "phase": self._phase_label(),
+            "current_state": decision.classified_state.value,
+            "incident_key": decision.incident_key,
+            "chosen_action": decision.chosen_action.value,
+            "decision_reason": decision.reason,
+            "failure_reason_code": decision.failure_reason_code,
+            "cooldown_active": decision.cooldown_active,
+            "lockout_active": decision.lockout_active,
+            "maintenance_mode_active": decision.maintenance_mode_active,
+            "execution": execution_payload,
+            "evidence": {
+                "gpio_heartbeat": ("fresh" if decision.evidence.gpio_fresh else "stale"),
+                "host_heartbeat": ("fresh" if decision.evidence.host_heartbeat_fresh else "stale"),
+                "host_heartbeat_progressing": decision.evidence.host_heartbeat_progressing,
+                "ssh_ok": decision.evidence.ssh_ok,
+                "ping_ok": decision.evidence.ping_ok,
+                "sentinel_stats_fresh": decision.evidence.sentinel_stats_fresh,
+                "sentinel_state_fresh": decision.evidence.sentinel_state_fresh,
+            },
+            "observation": {
+                "host_boot_id": obs.host_boot_id,
+                "host_seq": obs.host_seq,
+                "host_wall_time": obs.host_wall_time,
+            },
+        }
+        write_json_atomic(self._incident_summary_path, payload)
+
+    def _write_controller_stats(self, ts: float) -> None:
+        payload = {
+            "ts": ts,
+            "ts_iso": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
+            "code_version": __version__,
+            "phase": self._phase_label(),
+            "uptime_sec": max(0.0, ts - self._stats_started_ts),
+            "cycle_count": self._cycle_count,
+            "executed_action_count": self._executed_action_count,
+            "state_counts": dict(sorted(self._state_counts.items())),
+            "action_counts": dict(sorted(self._action_counts.items())),
+            "last_state_write_ts": self._runtime_state.last_state_write_ts,
+            "last_loop_ts": self._runtime_state.last_loop_ts,
+            "last_observation_ts": self._runtime_state.last_observation_ts,
+            "last_state": self._runtime_state.current_state.value,
+        }
+        write_json_atomic(self._controller_stats_path, payload)
+
+    def _suppressed_actions(self, chosen_action: RecoveryAction) -> list[str]:
+        actions = [
+            RecoveryAction.RESTART_SENTINEL,
+            RecoveryAction.REMOTE_REBOOT,
+            RecoveryAction.GPIO_REBOOT,
+            RecoveryAction.POWER_BUTTON_PULSE,
+        ]
+        suppressed: list[str] = []
+        for action in actions:
+            if action == chosen_action:
+                continue
+            if not self._action_allowed(action):
+                suppressed.append(action.value)
+        return suppressed
+
+    def _action_allowed(self, action: RecoveryAction) -> bool:
+        required_phase = self._required_phase(action)
+        if required_phase is not None and required_phase not in self._config.actions.enabled_phases:
+            return False
+        if action == RecoveryAction.RESTART_SENTINEL:
+            return self._config.actions.enable_restart_sentinel
+        if action == RecoveryAction.REMOTE_REBOOT:
+            return self._config.actions.enable_remote_reboot
+        if action == RecoveryAction.GPIO_REBOOT:
+            return self._config.actions.enable_gpio_reboot
+        if action == RecoveryAction.POWER_BUTTON_PULSE:
+            return self._config.actions.enable_power_button_pulse
+        return True
+
+    def _required_phase(self, action: RecoveryAction) -> str | None:
+        if action == RecoveryAction.RESTART_SENTINEL:
+            return "B"
+        if action == RecoveryAction.REMOTE_REBOOT:
+            return "C"
+        if action in (RecoveryAction.GPIO_REBOOT, RecoveryAction.POWER_BUTTON_PULSE):
+            return "D"
+        return None
 
     def _emit_startup_events(self, ts: float) -> None:
         phase = self._phase_label()
@@ -289,182 +490,37 @@ class ReviveController:
             )
             self._runtime_state.last_maintenance_mode = enabled
 
-    def _action_gate_snapshot(self) -> dict[str, bool]:
+    def _action_gate_snapshot(self) -> dict[str, bool | str]:
         return {
             "dry_run": self._config.actions.dry_run,
             "enable_restart_sentinel": self._config.actions.enable_restart_sentinel,
             "enable_remote_reboot": self._config.actions.enable_remote_reboot,
             "enable_gpio_reboot": self._config.actions.enable_gpio_reboot,
             "enable_power_button_pulse": self._config.actions.enable_power_button_pulse,
+            "enabled_phases": ",".join(sorted(self._config.actions.enabled_phases)),
         }
 
-    def _action_gate_signature(self, gates: dict[str, bool]) -> str:
-        return "|".join(f"{key}={int(value)}" for key, value in sorted(gates.items()))
+    def _action_gate_signature(self, gates: dict[str, bool | str]) -> str:
+        parts: list[str] = []
+        for key, value in sorted(gates.items()):
+            if isinstance(value, bool):
+                parts.append(f"{key}={int(value)}")
+            else:
+                parts.append(f"{key}={value}")
+        return "|".join(parts)
 
     def _phase_label(self) -> str:
         actions = self._config.actions
-        if (
-            actions.dry_run
-            and not actions.enable_restart_sentinel
-            and not actions.enable_remote_reboot
-            and not actions.enable_gpio_reboot
-            and not actions.enable_power_button_pulse
-        ):
+        phases = actions.enabled_phases
+        if actions.dry_run and phases == {"A"}:
             return "PHASE_A"
-        if (
-            (not actions.dry_run)
-            and actions.enable_restart_sentinel
-            and (not actions.enable_remote_reboot)
-            and (not actions.enable_gpio_reboot)
-            and (not actions.enable_power_button_pulse)
-        ):
+        if (not actions.dry_run) and phases == {"A", "B"}:
             return "PHASE_B"
-        if (
-            (not actions.dry_run)
-            and actions.enable_restart_sentinel
-            and actions.enable_remote_reboot
-            and (not actions.enable_gpio_reboot)
-            and (not actions.enable_power_button_pulse)
-        ):
+        if (not actions.dry_run) and phases == {"A", "B", "C"}:
             return "PHASE_C"
-        if (
-            (not actions.dry_run)
-            and actions.enable_restart_sentinel
-            and actions.enable_remote_reboot
-            and actions.enable_gpio_reboot
-            and actions.enable_power_button_pulse
-        ):
+        if (not actions.dry_run) and phases == {"A", "B", "C", "D"}:
             return "PHASE_D"
         return "CUSTOM"
-
-    def _suppressed_actions(self) -> list[str]:
-        action_gates = {
-            RecoveryAction.RESTART_SENTINEL: self._config.actions.enable_restart_sentinel,
-            RecoveryAction.REMOTE_REBOOT: self._config.actions.enable_remote_reboot,
-            RecoveryAction.GPIO_REBOOT: self._config.actions.enable_gpio_reboot,
-            RecoveryAction.POWER_BUTTON_PULSE: self._config.actions.enable_power_button_pulse,
-        }
-        return [action.value for action, enabled in action_gates.items() if not enabled]
-
-    def _evidence_status(self, *, is_fresh: bool, age_seconds: float | None) -> str:
-        if age_seconds is None:
-            return "missing"
-        return "fresh" if is_fresh else "stale"
-
-    def _write_intervention_evidence_bundle(self, ts: float, decision: Decision, obs: Any) -> None:
-        timestamp = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y%m%d-%H%M%S")
-        corr = decision.correlation_id.replace("-", "")[:12] if decision.correlation_id else "na"
-        file_name = f"intervention_evidence_{timestamp}_{corr}.json"
-        payload = {
-            "ts": ts,
-            "controller_code_version": __version__,
-            "correlation_id": decision.correlation_id,
-            "incident_key": decision.incident_key,
-            "candidate_action": decision.chosen_action.value,
-            "phase_gate": self._phase_label(),
-            "cooldown_ok": not decision.cooldown_active,
-            "lockout_ok": not decision.lockout_active,
-            "maintenance_mode": decision.maintenance_mode_active,
-            "decision_reason": decision.reason,
-            "suppressed_actions": self._suppressed_actions(),
-            "evidence": {
-                "gpio_heartbeat": self._evidence_status(
-                    is_fresh=obs.gpio_heartbeat_fresh,
-                    age_seconds=obs.gpio_heartbeat_age_sec,
-                ),
-                "host_heartbeat": self._evidence_status(
-                    is_fresh=obs.host_heartbeat_fresh,
-                    age_seconds=obs.host_heartbeat_age_sec,
-                ),
-                "host_heartbeat_progress": (
-                    "progressing" if obs.host_heartbeat_progressing else "stalled"
-                ),
-                "sentinel_stats": self._evidence_status(
-                    is_fresh=obs.sentinel_stats_fresh,
-                    age_seconds=obs.sentinel_stats_age_sec,
-                ),
-                "sentinel_state": self._evidence_status(
-                    is_fresh=obs.sentinel_state_fresh,
-                    age_seconds=obs.sentinel_state_age_sec,
-                ),
-                "ping": "ok" if obs.ping_ok else "fail",
-                "ssh": "ok" if obs.ssh_ok else "fail",
-            },
-            "observation": {
-                "host_boot_id": obs.host_boot_id,
-                "host_seq": obs.host_seq,
-                "host_heartbeat_age_sec": obs.host_heartbeat_age_sec,
-                "gpio_heartbeat_age_sec": obs.gpio_heartbeat_age_sec,
-                "sentinel_stats_age_sec": obs.sentinel_stats_age_sec,
-                "sentinel_state_age_sec": obs.sentinel_state_age_sec,
-            },
-        }
-        write_json_atomic(self._intervention_evidence_dir / file_name, payload)
-
-    def _write_incident_summary(
-        self,
-        ts: float,
-        decision: Decision,
-        obs: Any,
-        execution_payload: dict[str, Any],
-    ) -> None:
-        payload = {
-            "ts": ts,
-            "controller_code_version": __version__,
-            "correlation_id": decision.correlation_id,
-            "current_state": decision.classified_state.value,
-            "candidate_action": decision.chosen_action.value,
-            "incident_key": decision.incident_key,
-            "phase": self._phase_label(),
-            "reason": decision.reason,
-            "cooldown_active": decision.cooldown_active,
-            "lockout_active": decision.lockout_active,
-            "maintenance_mode_active": decision.maintenance_mode_active,
-            "suppressed_actions": self._suppressed_actions(),
-            "execution": execution_payload,
-            "observation": {
-                "host_boot_id": obs.host_boot_id,
-                "host_seq": obs.host_seq,
-                "host_heartbeat_fresh": obs.host_heartbeat_fresh,
-                "host_heartbeat_progressing": obs.host_heartbeat_progressing,
-                "gpio_heartbeat_fresh": obs.gpio_heartbeat_fresh,
-                "sentinel_stats_fresh": obs.sentinel_stats_fresh,
-                "sentinel_state_fresh": obs.sentinel_state_fresh,
-                "ping_ok": obs.ping_ok,
-                "ssh_ok": obs.ssh_ok,
-            },
-        }
-        write_json_atomic(self._incident_summary_path, payload)
-
-    def _load_controller_stats(self) -> None:
-        payload = read_json(self._controller_stats_path)
-        if not isinstance(payload, dict):
-            return
-        self._stats_started_ts = float(payload.get("started_ts", self._stats_started_ts))
-        self._cycle_count = int(payload.get("cycle_count", 0))
-        self._executed_action_count = int(payload.get("executed_action_count", 0))
-        self._state_counts = Counter(
-            {str(k): int(v) for k, v in payload.get("state_counts", {}).items()}
-        )
-        self._action_counts = Counter(
-            {str(k): int(v) for k, v in payload.get("action_counts", {}).items()}
-        )
-
-    def _write_controller_stats(self, ts: float, decision: Decision) -> None:
-        payload = {
-            "ts": ts,
-            "schema_version": 1,
-            "controller_code_version": __version__,
-            "started_ts": self._stats_started_ts,
-            "uptime_sec": max(0.0, ts - self._stats_started_ts),
-            "cycle_count": self._cycle_count,
-            "executed_action_count": self._executed_action_count,
-            "last_state": decision.classified_state.value,
-            "last_action": decision.chosen_action.value,
-            "state_counts": dict(self._state_counts),
-            "action_counts": dict(self._action_counts),
-        }
-        write_json_atomic(self._controller_stats_path, payload)
 
     def _verify_sentinel_restart_freshness(self) -> dict[str, Any]:
         # Sentinel facts are mirrored from the remote host and may lag by a few

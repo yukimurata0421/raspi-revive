@@ -8,6 +8,20 @@ This document keeps an operational record for Phase C runtime verification and i
 - Intent: this log is not only a success report; it is the single timeline for incident facts, root-cause evidence, containment, and hardening decisions.
 - Operational stance: keep `REMOTE_REBOOT` under evidence-gated control, and change enablement only after explicit operator decision.
 
+## Record: 2026-04-27 (JST) Cooldown Extension and Notification Route Addition
+
+### Changes Applied
+
+- Changed `guard.cooldown_seconds` from `120` seconds to `300` seconds (5 minutes).
+- Added dedicated webhook notification routing for `REMOTE_REBOOT` execution because direct execution notifications were not present.
+  - `notify.remote_reboot_discord_webhook_url`
+  - `notify.remote_reboot_discord_webhook_url_env`
+
+### Decision Note
+
+- The 5-minute setting was adopted because it was inferred to be more stable for avoiding repeated interventions after reboot.
+- Existing notify behavior focused on candidate-state alerts, so explicit `REMOTE_REBOOT` execution notification was added.
+
 ## Record: 2026-04-22 (JST) Phase C Runtime Check
 
 ### Scope
@@ -241,22 +255,6 @@ This document keeps an operational record for Phase C runtime verification and i
    - edge timestamp progresses.
 3. Treat post-change transition windows separately from stable-window metrics.
 
-### Related Threshold Tightening
-
-- With GPIO observation stabilized, `gpio_heartbeat_stale_sec` is operated under a tightened policy:
-  - initial value: `120.0` (stability-first during early observation)
-  - current value: `10.0` (still with margin vs measured `age ~0.8s`, `max ~1.7s`)
-- Runtime backup checkpoints on the controller host show:
-  - `120.0` at `2026-04-20 05:27 JST`
-  - `10.0` at `2026-04-22 11:01 JST`
-  - indicating the tightening was completed around `2026-04-22`.
-- Repository phase configs already use `10.0` consistently across all phases.
-- Rolling 24h soak snapshot (as of `2026-04-24 09:05 JST`):
-  - window: `2026-04-23 09:05 JST` to `2026-04-24 09:05 JST`
-  - `samples=7907`, `gpio_fresh=true=3709`, `false=4198`, `ratio=46.91%`
-  - `age_mean=16.913s`, `p50=10.847s`, `p95=53.583s`, `max=238.386s`
-  - note: this 24h window includes pre-fix and transition samples; completion judgment should be based on stable-window evidence in addition to rolling-window metrics.
-
 ## Phase A-C Coverage Check
 
 This log plus linked docs now explicitly cover:
@@ -269,3 +267,75 @@ This log plus linked docs now explicitly cover:
   - false-trigger incident and RCA,
   - logic hardening,
   - controlled re-enable decision and evidence.
+
+## Record: 2026-04-25 (JST) Controller State Freshness Hardening and Live Deployment Recovery
+
+### Scope
+
+- Objective:
+  - resolve stale `controller-state.json` progression during steady `HEALTHY` cycles,
+  - keep write volume bounded,
+  - preserve structural persistence guarantees.
+- Runtime target:
+  - `raspi-revive-controller.service` on `pi5-guard`.
+
+### What Happened
+
+- During steady healthy operation, persisted runtime state could remain unchanged for long periods.
+- Root cause was design-level:
+  - state persistence compared full dict snapshots,
+  - state dict had no loop heartbeat timestamps,
+  - therefore no write trigger when structural fields remained unchanged.
+- During first deployment attempt, only a subset of files was synchronized from a divergent tree, causing import mismatch at preflight.
+
+### Decision
+
+- Adopt two-domain state model:
+  - structural domain (must trigger persistence on changes),
+  - heartbeat domain (time progression for freshness monitoring).
+- Keep `schema_version` and `code_version` in structural domain.
+- Exclude only heartbeat timestamps from structural comparison.
+- Add bounded heartbeat write interval (`30s`) rather than per-cycle writes.
+- Add systemd start-limit guard to bound restart storms.
+
+### Implementation
+
+- `ControllerRuntimeState` extended with:
+  - `schema_version`, `code_version`
+  - `last_loop_ts`, `last_observation_ts`, `last_state_write_ts`
+- Added `HEARTBEAT_FIELDS` + `to_structural_dict()` in model layer.
+- Controller persistence write condition changed to:
+  - `structural_changed OR file_missing OR heartbeat_due`
+- Added lifecycle events:
+  - `controller_state_write_failed`
+  - `controller_state_write_stale`
+- Service unit updated:
+  - `StartLimitIntervalSec=300`
+  - `StartLimitBurst=5`
+  - keys placed under `[Unit]` for effective application.
+
+### Deployment and Recovery
+
+- Initial deploy failed due inconsistent source snapshot selection (preflight import mismatch).
+- Recovery action:
+  - synchronized consistent runtime sources,
+  - reinstalled service unit,
+  - added a late-order unit drop-in to override legacy `StartLimitIntervalSec=0`,
+  - `daemon-reload`, `reset-failed`, restart.
+- Service returned to stable `active (running)` state.
+
+### Verification Evidence
+
+- Local validation before deploy:
+  - `pytest -q` passed (`65 passed`)
+  - `ruff check .` passed
+  - scenario replay passed (`All 10 scenario(s) passed`)
+- Live host checks:
+  - service `active`
+  - `/var/lib/raspi-revive/state/controller-state.json` includes new fields
+  - `last_state_write_ts` advances at ~30s cadence in steady `HEALTHY` state.
+
+### Follow-up Notes
+
+- Runtime state path on the host is `/var/lib/raspi-revive/state/controller-state.json`.
+- Legacy `/run/raspi-revive/state/controller-state.json` may exist from prior layouts and should not be used as freshness source.

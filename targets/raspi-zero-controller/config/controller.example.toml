@@ -21,6 +21,7 @@ cooldown_seconds = 120.0
 lockout_window_seconds = 1800.0
 max_actions_per_window = 3
 post_action_verification_wait_seconds = 180.0
+post_boot_reconciliation_wait_seconds = 180.0
 
 [paths]
 host_heartbeat_path = "/var/lib/raspi-revive-agent/host-heartbeat.json"
@@ -28,11 +29,13 @@ host_heartbeat_path = "/var/lib/raspi-revive-agent/host-heartbeat.json"
 gpio_heartbeat_path = "/var/lib/raspi-revive-agent/gpio-heartbeat.json"
 sentinel_stats_path = "/var/lib/raspi-revive-agent/sentinel/stats.json"
 sentinel_state_path = "/var/lib/raspi-revive-agent/sentinel/state.json"
+export_meta_path = "/var/lib/raspi-revive-agent/meta.json"
 observations_log_path = "/var/log/raspi-revive/observations.jsonl"
 decisions_log_path = "/var/log/raspi-revive/decisions.jsonl"
 actions_log_path = "/var/log/raspi-revive/actions.jsonl"
 events_log_path = "/var/log/raspi-revive/events.jsonl"
 controller_state_path = "/var/lib/raspi-revive/state/controller-state.json"
+# Optional overrides for intervention evidence snapshots.
 intervention_evidence_dir = "/var/lib/raspi-revive/state/intervention-evidence"
 incident_summary_path = "/var/lib/raspi-revive/state/incident-summary.json"
 controller_stats_path = "/var/lib/raspi-revive/state/controller-stats.json"
@@ -43,6 +46,7 @@ enable_restart_sentinel = true
 enable_remote_reboot = true
 enable_gpio_reboot = true
 enable_power_button_pulse = true
+enabled_phases = ["A", "B", "C", "D"]
 restart_sentinel_cmd = ["ssh", "<agent-user>@<agent-host>", "sudo", "systemctl", "restart", "raspi-sentinel.service"]
 remote_reboot_cmd = ["ssh", "<agent-user>@<agent-host>", "sudo", "reboot"]
 gpio_reboot_cmd = ["/usr/local/bin/raspi-revive-gpio-reset", "--profile", "pi5-main"]
@@ -64,6 +68,8 @@ backoff_multiplier = 2.0
 backoff_max_seconds = 3600.0
 discord_webhook_url = ""
 discord_webhook_url_env = "RASPI_REVIVE_DISCORD_WEBHOOK_URL"
+remote_reboot_discord_webhook_url = ""
+remote_reboot_discord_webhook_url_env = "RASPI_REVIVE_REMOTE_REBOOT_WEBHOOK_URL"
 remote_append_enabled = true
 remote_jsonl_path = "/var/lib/raspi-revive-agent/revive-notify-events.jsonl"
 queue_path = "/var/lib/raspi-revive/state/notify-queue.json"
@@ -73,3 +79,20 @@ stats_flush_interval_seconds = 60.0
 
 max_queue_size = 256
 max_event_age_seconds = 86400.0
+
+[[notify.providers]]
+name = "ssh_append_default"
+kind = "ssh_append"
+enabled = true
+remote_jsonl_path = "/var/lib/raspi-revive-agent/revive-notify-events.jsonl"
+
+[[notify.providers]]
+name = "discord_webhook_default"
+kind = "discord_webhook"
+enabled = true
+webhook_url = ""
+webhook_url_env = "RASPI_REVIVE_DISCORD_WEBHOOK_URL"
+
+[logs]
+max_log_size_mb = 10.0
+rotation_count = 3

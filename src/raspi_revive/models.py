@@ -9,10 +9,13 @@ class ControllerState(str, Enum):
     HEALTHY = "HEALTHY"
     MANAGEMENT_PLANE_DEGRADED = "MANAGEMENT_PLANE_DEGRADED"
     SENTINEL_ONLY_FAILURE = "SENTINEL_ONLY_FAILURE"
+    TELEMETRY_PIPELINE_FAILURE = "TELEMETRY_PIPELINE_FAILURE"
     HOST_DEGRADED = "HOST_DEGRADED"
     FREEZE_SUSPECTED = "FREEZE_SUSPECTED"
     NETWORK_ONLY_ISSUE = "NETWORK_ONLY_ISSUE"
     RECOVERY_IN_PROGRESS = "RECOVERY_IN_PROGRESS"
+    POST_BOOT_RECONCILIATION = "POST_BOOT_RECONCILIATION"
+    RECOVERY_PARTIAL = "RECOVERY_PARTIAL"
     COOLDOWN = "COOLDOWN"
     LOCKOUT = "LOCKOUT"
 
@@ -43,6 +46,17 @@ class Observation:
     sentinel_state_fresh: bool
     ping_ok: bool
     ssh_ok: bool
+    export_meta_age_sec: float | None = None
+    export_meta_fresh: bool = False
+    export_last_export_attempt_age_sec: float | None = None
+    export_last_export_success_age_sec: float | None = None
+    export_last_error: str | None = None
+    export_source_host_heartbeat_age_sec: float | None = None
+    export_source_host_heartbeat_fresh: bool | None = None
+    export_source_sentinel_stats_age_sec: float | None = None
+    export_source_sentinel_stats_fresh: bool | None = None
+    export_source_sentinel_state_age_sec: float | None = None
+    export_source_sentinel_state_fresh: bool | None = None
 
 
 @dataclass(slots=True)
@@ -112,6 +126,7 @@ class Decision:
     incident_key: str
     lockout_latch_event: str | None
     correlation_id: str
+    failure_reason_code: str | None = None
 
 
 @dataclass(slots=True)
@@ -120,7 +135,28 @@ class PendingVerification:
     previous_boot_id: str | None
     created_ts: float
     deadline_ts: float
+    attempt_id: str
     correlation_id: str
+
+
+@dataclass(slots=True)
+class PostBootReconciliation:
+    action: RecoveryAction
+    boot_id: str | None
+    created_ts: float
+    deadline_ts: float
+    attempt_id: str
+    correlation_id: str
+
+
+# Fields excluded from structural-diff persistence checks.
+HEARTBEAT_FIELDS: frozenset[str] = frozenset(
+    {
+        "last_loop_ts",
+        "last_observation_ts",
+        "last_state_write_ts",
+    }
+)
 
 
 @dataclass(slots=True)
@@ -131,14 +167,21 @@ class ControllerRuntimeState:
     action_timestamps: list[float] = field(default_factory=list)
     lockout_until_ts: float | None = None
     pending_verification: PendingVerification | None = None
+    post_boot_reconciliation: PostBootReconciliation | None = None
     previous_host_boot_id: str | None = None
     previous_host_seq: int | None = None
+    last_telemetry_healthy_boot_id: str | None = None
     last_action_incident_key: str | None = None
     lockout_latch_active: bool = False
     last_emitted_controller_state: str | None = None
     last_phase_label: str | None = None
     last_action_gate_signature: str | None = None
     last_maintenance_mode: bool | None = None
+    schema_version: int = 1
+    code_version: str | None = None
+    last_loop_ts: float | None = None
+    last_observation_ts: float | None = None
+    last_state_write_ts: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         pending = None
@@ -148,7 +191,18 @@ class ControllerRuntimeState:
                 "previous_boot_id": self.pending_verification.previous_boot_id,
                 "created_ts": self.pending_verification.created_ts,
                 "deadline_ts": self.pending_verification.deadline_ts,
+                "attempt_id": self.pending_verification.attempt_id,
                 "correlation_id": self.pending_verification.correlation_id,
+            }
+        post_boot = None
+        if self.post_boot_reconciliation is not None:
+            post_boot = {
+                "action": self.post_boot_reconciliation.action.value,
+                "boot_id": self.post_boot_reconciliation.boot_id,
+                "created_ts": self.post_boot_reconciliation.created_ts,
+                "deadline_ts": self.post_boot_reconciliation.deadline_ts,
+                "attempt_id": self.post_boot_reconciliation.attempt_id,
+                "correlation_id": self.post_boot_reconciliation.correlation_id,
             }
         return {
             "current_state": self.current_state.value,
@@ -157,15 +211,26 @@ class ControllerRuntimeState:
             "action_timestamps": list(self.action_timestamps),
             "lockout_until_ts": self.lockout_until_ts,
             "pending_verification": pending,
+            "post_boot_reconciliation": post_boot,
             "previous_host_boot_id": self.previous_host_boot_id,
             "previous_host_seq": self.previous_host_seq,
+            "last_telemetry_healthy_boot_id": self.last_telemetry_healthy_boot_id,
             "last_action_incident_key": self.last_action_incident_key,
             "lockout_latch_active": self.lockout_latch_active,
             "last_emitted_controller_state": self.last_emitted_controller_state,
             "last_phase_label": self.last_phase_label,
             "last_action_gate_signature": self.last_action_gate_signature,
             "last_maintenance_mode": self.last_maintenance_mode,
+            "schema_version": self.schema_version,
+            "code_version": self.code_version,
+            "last_loop_ts": self.last_loop_ts,
+            "last_observation_ts": self.last_observation_ts,
+            "last_state_write_ts": self.last_state_write_ts,
         }
+
+    def to_structural_dict(self) -> dict[str, Any]:
+        """Return persistence-structure payload excluding heartbeat fields."""
+        return {k: v for k, v in self.to_dict().items() if k not in HEARTBEAT_FIELDS}
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ControllerRuntimeState":
@@ -177,7 +242,19 @@ class ControllerRuntimeState:
                 previous_boot_id=pending.get("previous_boot_id"),
                 created_ts=float(pending["created_ts"]),
                 deadline_ts=float(pending["deadline_ts"]),
+                attempt_id=str(pending.get("attempt_id", "")),
                 correlation_id=str(pending["correlation_id"]),
+            )
+        post_boot = data.get("post_boot_reconciliation")
+        post_boot_obj = None
+        if post_boot is not None:
+            post_boot_obj = PostBootReconciliation(
+                action=RecoveryAction(post_boot["action"]),
+                boot_id=post_boot.get("boot_id"),
+                created_ts=float(post_boot["created_ts"]),
+                deadline_ts=float(post_boot["deadline_ts"]),
+                attempt_id=str(post_boot.get("attempt_id", "")),
+                correlation_id=str(post_boot["correlation_id"]),
             )
         return cls(
             current_state=ControllerState(data.get("current_state", ControllerState.HEALTHY.value)),
@@ -188,10 +265,12 @@ class ControllerRuntimeState:
                 None if data.get("lockout_until_ts") is None else float(data["lockout_until_ts"])
             ),
             pending_verification=pending_obj,
+            post_boot_reconciliation=post_boot_obj,
             previous_host_boot_id=data.get("previous_host_boot_id"),
             previous_host_seq=(
                 None if data.get("previous_host_seq") is None else int(data["previous_host_seq"])
             ),
+            last_telemetry_healthy_boot_id=data.get("last_telemetry_healthy_boot_id"),
             last_action_incident_key=data.get("last_action_incident_key"),
             lockout_latch_active=bool(data.get("lockout_latch_active", False)),
             last_emitted_controller_state=data.get("last_emitted_controller_state"),
@@ -201,5 +280,18 @@ class ControllerRuntimeState:
                 None
                 if data.get("last_maintenance_mode") is None
                 else bool(data.get("last_maintenance_mode"))
+            ),
+            schema_version=int(data.get("schema_version", 1)),
+            code_version=(None if data.get("code_version") is None else str(data["code_version"])),
+            last_loop_ts=(None if data.get("last_loop_ts") is None else float(data["last_loop_ts"])),
+            last_observation_ts=(
+                None
+                if data.get("last_observation_ts") is None
+                else float(data["last_observation_ts"])
+            ),
+            last_state_write_ts=(
+                None
+                if data.get("last_state_write_ts") is None
+                else float(data["last_state_write_ts"])
             ),
         )
