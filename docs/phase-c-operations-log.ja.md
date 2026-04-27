@@ -8,20 +8,6 @@
 - 意図: この文書は「テスト成功記録」だけでなく、「誤発火の事実」「原因」「封じ込め」「再発防止ロジック」を同じ系列で追跡するための記録である。
 - 運用方針: `REMOTE_REBOOT` は常時開放ではなく、証拠ゲートを満たす実装と明示的な運用判断の両方で制御する。
 
-## 2026-04-27 (JST) クールダウン延長と通知経路追加
-
-### 実施内容
-
-- `guard.cooldown_seconds` を `120` 秒から `300` 秒（5分）へ変更。
-- `REMOTE_REBOOT` 実行時の通知が未実装だったため、専用 webhook 通知経路を追加。
-  - `notify.remote_reboot_discord_webhook_url`
-  - `notify.remote_reboot_discord_webhook_url_env`
-
-### 判断メモ
-
-- 5分設定は、連続介入を避けるための運用安定化に有効と推定したため採用。
-- 既存通知は候補状態（candidate）中心で、`REMOTE_REBOOT` 実行そのものの通知が無かったため、実行イベント通知を追加。
-
 ## 2026-04-22 (JST) フェーズC実稼働確認
 
 ### 対象
@@ -276,6 +262,22 @@
 3. 集計窓の運用ルール:
    - 設定変更直後の「遷移窓」を評価対象から分離し、比較は安定窓で行う。
 
+### 関連する閾値の引き締め
+
+- GPIO観測の安定化に合わせて、`gpio_heartbeat_stale_sec` は次の方針で運用している。
+  - 初期運用値: `120.0`（観測安定性優先）
+  - 現行運用値: `10.0`（実測 `age ~0.8s`, `max ~1.7s` に対して十分な余裕）
+- 実機バックアップの確認:
+  - `2026-04-20 05:27 JST` 時点: `120.0`
+  - `2026-04-22 11:01 JST` 時点: `10.0`
+  - 引き締め適用は `2026-04-22` 前後に完了したと判断できる。
+- リポジトリ側の phase 設定は全phase共通で `10.0` を採用済み。
+- rolling 24h 観測スナップショット（`2026-04-24 09:05 JST` 時点）:
+  - 窓: `2026-04-23 09:05 JST` から `2026-04-24 09:05 JST`
+  - `samples=7907`, `gpio_fresh=true=3709`, `false=4198`, `ratio=46.91%`
+  - `age_mean=16.913s`, `p50=10.847s`, `p95=53.583s`, `max=238.386s`
+  - 注記: この24h窓には修正前/切替中のサンプルが含まれるため、修正完了判定は「遷移窓を除いた安定窓」と併用して評価する。
+
 ### English Summary (short)
 
 - Root cause was not a single `pinctrl` sampling issue.
@@ -296,73 +298,3 @@
   - 誤発火事象とRCA、
   - ロジックハードニング、
   - 条件付き再有効化の実施証跡。
-
-## 2026-04-25 (JST) controller-state 鮮度ハードニングと本番反映復旧記録
-
-### 対象
-
-- 目的:
-  - `HEALTHY` 連続時に `controller-state.json` が古いまま残る問題の解消
-  - 書き込み量の抑制と構造変化の即時反映を両立
-- 実行対象:
-  - `pi5-guard` 上の `raspi-revive-controller.service`
-
-### 何が起きていたか
-
-- 連続 `HEALTHY` 時に state 永続化が長時間進まないケースがあった。
-- 直接原因:
-  - 保存判定が dict 全体比較で、
-  - 既存 state にループ時刻系がなく、
-  - 構造項目が不変だと保存トリガが立たない。
-- 反映初回では、実行中ツリーと不整合な一部ファイルのみを同期したため preflight import 不整合が発生した。
-
-### 判断
-
-- state を 2領域で扱う設計に変更:
-  - 構造領域（変更時は必ず保存）
-  - ハートビート領域（鮮度監視用時刻、比較除外）
-- `schema_version` / `code_version` は構造領域へ残す。
-- ループ毎保存は採らず、ハートビート保存間隔は `30s` に制限。
-- restart 暴走の上限を systemd 側で明示する。
-
-### 実装内容
-
-- `ControllerRuntimeState` へ追加:
-  - `schema_version`, `code_version`
-  - `last_loop_ts`, `last_observation_ts`, `last_state_write_ts`
-- `HEARTBEAT_FIELDS` と `to_structural_dict()` を追加。
-- 保存条件を以下に変更:
-  - `structural_changed OR file_missing OR heartbeat_due`
-- 失敗/鮮度遅延イベントを追加:
-  - `controller_state_write_failed`
-  - `controller_state_write_stale`
-- unit 設定を追加:
-  - `StartLimitIntervalSec=300`
-  - `StartLimitBurst=5`
-  - 有効化のため配置は `[Unit]` セクション。
-
-### 反映と復旧
-
-- 初回反映は source 不整合で起動失敗。
-- 復旧として:
-  - 一貫した runtime source を再同期、
-  - unit を再配置、
-  - 既存 drop-in の `StartLimitIntervalSec=0` を上書きする後段 drop-in を追加、
-  - `daemon-reload` / `reset-failed` / restart 実施。
-- その後 service は `active (running)` に復帰。
-
-### 検証結果
-
-- 反映前ローカル検証:
-  - `pytest -q` (`65 passed`)
-  - `ruff check .` (`All checks passed`)
-  - scenario replay (`All 10 scenario(s) passed`)
-- 実機検証:
-  - service `active`
-  - `/var/lib/raspi-revive/state/controller-state.json` に新規フィールドが出力
-  - `last_state_write_ts` が約30秒間隔で前進。
-
-### 運用メモ
-
-- 実機の正本 state path は `/var/lib/raspi-revive/state/controller-state.json`。
-- `/run/raspi-revive/state/controller-state.json` は旧レイアウト由来が残る場合があるため、鮮度判定の正本としては使わない。

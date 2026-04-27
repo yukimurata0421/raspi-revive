@@ -2,27 +2,14 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from .config import LogConfig, PathConfig
-from . import io
+from .config import PathConfig
+from .io import append_jsonl
 from .models import Decision, Observation
 
 
 class AuditLogger:
-    def __init__(self, paths: PathConfig, logs: LogConfig) -> None:
+    def __init__(self, paths: PathConfig) -> None:
         self._paths = paths
-        self._logs = logs
-
-    def _append_jsonl(self, path, payload: dict) -> None:
-        rotate_writer = getattr(io, "append_jsonl_with_rotation", None)
-        if callable(rotate_writer):
-            rotate_writer(
-                path,
-                payload,
-                max_bytes=self._logs.max_log_size_bytes,
-                rotation_count=self._logs.rotation_count,
-            )
-            return
-        io.append_jsonl(path, payload)
 
     def log_observation(
         self,
@@ -37,7 +24,7 @@ class AuditLogger:
             "correlation_id": correlation_id,
             "observation": asdict(observation),
         }
-        self._append_jsonl(self._paths.observations_log_path, payload)
+        append_jsonl(self._paths.observations_log_path, payload)
 
     def log_decision(self, ts: float, decision: Decision) -> None:
         payload = {
@@ -45,7 +32,6 @@ class AuditLogger:
             "controller_state": decision.classified_state.value,
             "correlation_id": decision.correlation_id,
             "incident_key": decision.incident_key,
-            "failure_reason_code": decision.failure_reason_code,
             "chosen_action": decision.chosen_action.value,
             "reason": decision.reason,
             "evidence_summary": asdict(decision.evidence),
@@ -54,7 +40,7 @@ class AuditLogger:
             "maintenance_mode_active": decision.maintenance_mode_active,
             "lockout_latch_event": decision.lockout_latch_event,
         }
-        self._append_jsonl(self._paths.decisions_log_path, payload)
+        append_jsonl(self._paths.decisions_log_path, payload)
 
     def log_action(
         self,
@@ -79,7 +65,7 @@ class AuditLogger:
             "lockout_context": lockout_context,
             "execution": execution,
         }
-        self._append_jsonl(self._paths.actions_log_path, payload)
+        append_jsonl(self._paths.actions_log_path, payload)
 
     def log_event(
         self,
@@ -95,4 +81,4 @@ class AuditLogger:
         }
         if correlation_id is not None:
             payload["correlation_id"] = correlation_id
-        self._append_jsonl(self._paths.events_log_path, payload)
+        append_jsonl(self._paths.events_log_path, payload)

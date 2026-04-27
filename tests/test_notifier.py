@@ -43,7 +43,6 @@ def _build_config(tmp_path: Path, *, webhook_url: str) -> ControllerConfig:
             lockout_window_seconds=3600.0,
             max_actions_per_window=3,
             post_action_verification_wait_seconds=120.0,
-            post_boot_reconciliation_wait_seconds=120.0,
         ),
         paths=PathConfig(
             host_heartbeat_path=tmp_path / "host-heartbeat.json",
@@ -62,7 +61,6 @@ def _build_config(tmp_path: Path, *, webhook_url: str) -> ControllerConfig:
             enable_remote_reboot=False,
             enable_gpio_reboot=False,
             enable_power_button_pulse=False,
-            enabled_phases=frozenset({"A"}),
             restart_sentinel_cmd=["true"],
             remote_reboot_cmd=["true"],
             gpio_reboot_cmd=["true"],
@@ -88,7 +86,7 @@ def _build_config(tmp_path: Path, *, webhook_url: str) -> ControllerConfig:
     )
 
 
-def _decision(*, action: RecoveryAction = RecoveryAction.NO_ACTION) -> Decision:
+def _decision() -> Decision:
     evidence = Evidence(
         out_of_band_gpio_fresh=False,
         network_dependent_host_heartbeat_fresh=False,
@@ -100,7 +98,7 @@ def _decision(*, action: RecoveryAction = RecoveryAction.NO_ACTION) -> Decision:
     )
     return Decision(
         classified_state=ControllerState.HOST_DEGRADED,
-        chosen_action=action,
+        chosen_action=RecoveryAction.NO_ACTION,
         reason="host degraded sustained",
         evidence=evidence,
         cooldown_active=False,
@@ -197,68 +195,3 @@ def test_notifier_drops_expired_items(tmp_path: Path, monkeypatch) -> None:
     assert queue_payload["items"] == []
     events = config.notify.events_path.read_text(encoding="utf-8")
     assert "dropped_expired" in events
-
-
-def test_remote_reboot_notification_uses_dedicated_webhook(tmp_path: Path, monkeypatch) -> None:
-    config = _build_config(tmp_path, webhook_url="")
-    config.notify.remote_reboot_discord_webhook_url = "https://example.test/remote-reboot"
-    dispatcher = NotifyDispatcher(config)
-    calls: list[tuple[str, str]] = []
-
-    def _fake_send(self, content: str, webhook_url: str) -> tuple[bool, str | None]:
-        calls.append((content, webhook_url))
-        return True, None
-
-    monkeypatch.setattr(NotifyDispatcher, "_send_discord_message_to_url", _fake_send)
-
-    dispatcher.handle_action_execution(
-        decision=_decision(action=RecoveryAction.REMOTE_REBOOT),
-        execution={"executed": True, "success": True, "detail": "exit=0"},
-        now_ts=10.0,
-    )
-
-    assert len(calls) == 1
-    assert calls[0][1] == "https://example.test/remote-reboot"
-    assert "REMOTE_REBOOT executed" in calls[0][0]
-    queue_payload = json.loads(config.notify.queue_path.read_text(encoding="utf-8"))
-    assert queue_payload["items"] == []
-    events = config.notify.events_path.read_text(encoding="utf-8")
-    assert "remote_reboot_notify_enqueued" in events
-    assert "remote_reboot_notify_sent" in events
-
-
-def test_remote_reboot_notification_retries_with_backoff(tmp_path: Path, monkeypatch) -> None:
-    config = _build_config(tmp_path, webhook_url="")
-    config.notify.remote_reboot_discord_webhook_url = "https://example.test/remote-reboot"
-    dispatcher = NotifyDispatcher(config)
-
-    monkeypatch.setattr(
-        NotifyDispatcher,
-        "_send_discord_message_to_url",
-        lambda self, content, webhook_url: (False, "network down"),
-    )
-
-    dispatcher.handle_action_execution(
-        decision=_decision(action=RecoveryAction.REMOTE_REBOOT),
-        execution={"executed": True, "success": True, "detail": "exit=0"},
-        now_ts=10.0,
-    )
-
-    first = json.loads(config.notify.queue_path.read_text(encoding="utf-8"))["items"][0]
-    assert first["attempt_count"] == 1
-    assert first["next_retry_ts"] == 70.0
-
-    dispatcher._drain_queue(71.0)
-    dispatcher._flush_persistence(71.0)
-    second = json.loads(config.notify.queue_path.read_text(encoding="utf-8"))["items"][0]
-    assert second["attempt_count"] == 2
-    assert second["next_retry_ts"] == 131.0
-
-    dispatcher._drain_queue(311.0)
-    dispatcher._flush_persistence(311.0)
-    third = json.loads(config.notify.queue_path.read_text(encoding="utf-8"))["items"][0]
-    assert third["attempt_count"] == 3
-    assert third["next_retry_ts"] >= 431.0
-
-    events = config.notify.events_path.read_text(encoding="utf-8")
-    assert "remote_reboot_notify_failed" in events
